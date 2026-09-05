@@ -179,18 +179,28 @@ function LiveTranscriptFeed({ subjectName }: { subjectName: string }) {
             ];
           }
 
-          // If user speech: if the last message in the feed was also from the user, merge/append to it so natural pauses don't fragment into multiple bubbles!
+          // If user speech: match by ID if updating an existing turn, or append cleanly
           if (data.speaker === 'user') {
+            if (data.id) {
+              const idx = prev.findIndex(item => item.id === data.id);
+              if (idx !== -1) {
+                const updated = [...prev];
+                updated[idx] = {
+                  ...updated[idx],
+                  text: data.text,
+                  timestamp: timeStr,
+                };
+                return updated;
+              }
+            }
+
+            // If the last entry was also a user utterance without an ID or from the same turn, replace or cleanly append
             const lastItem = prev.length > 0 ? prev[prev.length - 1] : null;
-            if (lastItem && lastItem.speaker === 'user') {
+            if (lastItem && lastItem.speaker === 'user' && !lastItem.text.endsWith('.')) {
               const updated = [...prev];
-              // Avoid duplicating exact repeat segments if STT re-transcribed
-              const newText = lastItem.text.includes(data.text)
-                ? lastItem.text
-                : `${lastItem.text} ${data.text}`;
               updated[updated.length - 1] = {
                 ...lastItem,
-                text: newText,
+                text: `${lastItem.text} ${data.text}`.trim(),
                 timestamp: timeStr,
               };
               return updated;

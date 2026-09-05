@@ -246,6 +246,7 @@ class NegotiatorAgent(Agent):
                             self._room.local_participant.publish_data(
                                 json.dumps({
                                     "type": "transcript",
+                                    "id": getattr(ev, 'item_id', None),
                                     "speaker": "user",
                                     "senderName": "YOU",
                                     "text": ev.transcript.strip()
@@ -483,13 +484,13 @@ async def entrypoint(ctx: JobContext) -> None:
         logger.info(f"Fallback scenario mapped: Name={name}, Gender={gender} -> Speaker={speaker}")
 
     session = AgentSession(
-        vad=silero.VAD.load(min_silence_duration=0.25),
+        vad=silero.VAD.load(min_silence_duration=0.3),
         turn_handling={
-            "endpointing": {"min_delay": 0.15, "max_delay": 0.45},
+            "endpointing": {"min_delay": 0.2, "max_delay": 0.6},
             "interruption": {
                 "enabled": True,
                 "mode": "vad",
-                "min_duration": 0.25,
+                "min_duration": 0.3,
                 "resume_false_interruption": False,
             },
             "preemptive_generation": {"enabled": False},
@@ -498,7 +499,9 @@ async def entrypoint(ctx: JobContext) -> None:
         stt=openai.STT(
             base_url="https://api.groq.com/openai/v1",
             api_key=os.environ.get("GROQ_API_KEY"),
-            model="whisper-large-v3-turbo"
+            model="whisper-large-v3",
+            language="en",
+            prompt="Crisis negotiation dialogue between police negotiator and hostage taker or barricaded subject."
         ),
         llm=openai.LLM(
             base_url="https://api.groq.com/openai/v1",
