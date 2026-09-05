@@ -302,6 +302,10 @@ function SimulationUI({
     onDisconnect();
   }, [room, onDisconnect]);
 
+  const remoteParticipants = useRemoteParticipants();
+  const hasAgent = remoteParticipants.some(p => (p.kind as any) === 4 || (p.kind as any) === 'agent' || p.identity.startsWith('agent-'));
+  const effectiveState = (state === 'connecting' && (audioTrack || hasAgent)) ? 'speaking' : state;
+
   return (
     <div className="flex flex-col items-center justify-center p-6 min-h-[350px] relative">
       {/* Decorative crosshair */}
@@ -320,19 +324,19 @@ function SimulationUI({
       )}
 
       <div className="mb-4 flex flex-col items-center z-10">
-        <div className={`font-serif text-3xl md:text-4xl font-black uppercase tracking-tighter transition-colors ${tacticalHold ? 'text-[#d99a4e]' : state === 'speaking' ? 'text-[#d99a4e]' : 'text-[#1e1e1e]'}`}>
-          [ STATUS: {tacticalHold ? 'HOLD // THINK TIME' : state === 'connecting' ? 'DISPATCHING SUBJECT...' : state} ]
+        <div className={`font-serif text-3xl md:text-4xl font-black uppercase tracking-tighter transition-colors ${tacticalHold ? 'text-[#d99a4e]' : effectiveState === 'speaking' ? 'text-[#d99a4e]' : 'text-[#1e1e1e]'}`}>
+          [ STATUS: {tacticalHold ? 'HOLD // THINK TIME' : effectiveState === 'connecting' ? 'DISPATCHING SUBJECT...' : effectiveState} ]
         </div>
         <div className="h-16 mt-4 flex items-center justify-center">
           {audioTrack && !tacticalHold && (
             <BarVisualizer
-              state={state}
+              state={effectiveState}
               barCount={9}
               trackRef={audioTrack}
               className="h-16 w-64 text-[#1e1e1e]"
             />
           )}
-          {state === 'connecting' && !tacticalHold && (
+          {effectiveState === 'connecting' && !tacticalHold && (
             <div className="h-16 flex items-center justify-center font-mono text-xs tracking-widest text-[#1e1e1e]/70 animate-pulse">
               [ SECURING LIVE AUDIO COMMS LINK... ]
             </div>

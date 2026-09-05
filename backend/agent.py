@@ -24,6 +24,9 @@ import re
 import json
 import time
 
+# Preload Silero VAD globally once at process startup so entrypoint starts instantaneously
+PRELOADED_VAD = silero.VAD.load(min_silence_duration=0.35)
+
 FEMALE_VOICES = {
     'aggressive': ['astra', 'lyra', 'breeze'],
     'authoritative': ['astra', 'lyra'],
@@ -489,7 +492,7 @@ async def entrypoint(ctx: JobContext) -> None:
         logger.info(f"Fallback scenario mapped: Name={name}, Gender={gender} -> Speaker={speaker}")
 
     session = AgentSession(
-        vad=silero.VAD.load(min_silence_duration=0.35),
+        vad=PRELOADED_VAD,
         turn_handling={
             "endpointing": {"min_delay": 0.25, "max_delay": 0.7},
             "interruption": {
