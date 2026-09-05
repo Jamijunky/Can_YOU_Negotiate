@@ -8,6 +8,7 @@ from livekit.agents import (
     AgentServer,
     AgentSession,
     JobContext,
+    JobExecutorType,
     TurnHandlingOptions,
     cli,
 )
@@ -412,10 +413,8 @@ class NegotiatorAgent(Agent):
         return f"Stress level updated to {stress_level}."
 
 server = AgentServer(
-    num_idle_processes=0,
-    job_memory_warn_mb=400,
-    job_memory_limit_mb=480,
-    load_threshold=0.99,
+    job_executor_type=JobExecutorType.THREAD,
+    load_threshold=2.0,
 )
 
 @server.rtc_session()
