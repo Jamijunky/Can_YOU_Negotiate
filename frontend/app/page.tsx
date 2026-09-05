@@ -477,6 +477,41 @@ function Watchdog({ onDisconnect, isHolding }: { onDisconnect: () => void; isHol
 }
 
 
+const DEFAULT_SCENARIOS: Record<string, any> = {
+  robber: {
+    name: "Maria",
+    gender: "female",
+    archetype: "frantic",
+    intel: "Cornered in a bank vault service corridor. Alarm is blaring. Holding a panic trigger.",
+    instructions: "You are Maria, terrified, exhausted, caught mid-heist when silent alarms tripped. You want a safe corridor out.",
+    openingLine: "Don't you dare step through that door! Stay back!"
+  },
+  scammed: {
+    name: "Arthur",
+    gender: "male",
+    archetype: "desperate",
+    intel: "Trapped in the brokerage lobby on the 14th floor after losing his life savings in an offshore crypto scheme.",
+    instructions: "You are Arthur, devastated, furious, holding security guards at bay with a road flare.",
+    openingLine: "I want my money back! Call the director right now or nobody leaves!"
+  },
+  founder: {
+    name: "Sam",
+    gender: "male",
+    archetype: "aggressive",
+    intel: "Locked in the server room of his failed startup after discovering board members reported him to federal prosecutors.",
+    instructions: "You are Sam, erratic, paranoid, threatening to wipe the firm's encrypted customer database.",
+    openingLine: "I know what you're trying to do! Tell the feds to pull their cars back!"
+  },
+  custom: {
+    name: "Alex",
+    gender: "male",
+    archetype: "desperate",
+    intel: "Cornered subject demanding immediate resolution before taking drastic action.",
+    instructions: "You are Alex, cornered, stressed, and volatile.",
+    openingLine: "Stay back! Don't you dare come any closer!"
+  }
+};
+
 export default function Home() {
   const [token, setToken] = useState<string | null>(null);
   const [persona, setPersona] = useState('robber');
@@ -492,16 +527,19 @@ export default function Home() {
   const [difficulty, setDifficulty] = useState('medium');
   const [report, setReport] = useState<string | null>(null);
 
-  const [scenarioData, setScenarioData] = useState<any>(null);
+  const [scenarioData, setScenarioData] = useState<any>(DEFAULT_SCENARIOS.robber);
 
   const [isGeneratingIntel, setIsGeneratingIntel] = useState(false);
 
   useEffect(() => {
     let active = true;
+    // Set baseline default immediately so there is never a 0ms freeze
+    if (DEFAULT_SCENARIOS[persona]) {
+      setScenarioData(DEFAULT_SCENARIOS[persona]);
+    }
     const generate = async () => {
       try {
         setIsGeneratingIntel(true);
-        setScenarioData(null); // clear old intel
         const scenarioRes = await fetch('/api/scenario', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -532,18 +570,8 @@ export default function Home() {
     try {
       setIsConnecting(true);
       
-      let finalScenarioData = scenarioData;
-      // If still generating or missing, generate it on demand
-      if (!finalScenarioData) {
-        const scenarioRes = await fetch('/api/scenario', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ persona, difficulty, customMotive })
-        });
-        finalScenarioData = await scenarioRes.json();
-        if (!scenarioRes.ok) throw new Error(finalScenarioData.error || 'Failed to generate scenario');
-        setScenarioData(finalScenarioData);
-      }
+      // Instant scenario data without blocking on Groq LLM
+      const finalScenarioData = scenarioData || DEFAULT_SCENARIOS[persona] || DEFAULT_SCENARIOS.robber;
 
       // Step 2: Fetch LiveKit Token with Metadata
       const roomName = `english-${persona}-${Math.floor(Math.random() * 10000)}`;

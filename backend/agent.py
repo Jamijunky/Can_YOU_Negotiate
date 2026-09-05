@@ -176,13 +176,14 @@ async def filter_inner_thoughts(text_stream):
 
 
 class NegotiatorAgent(Agent):
-    def __init__(self, instructions: str, on_enter_prompt: str, room, subject_name: str = "Alex") -> None:
+    def __init__(self, instructions: str, on_enter_prompt: str, room, subject_name: str = "Alex", opening_line: str = "") -> None:
         super().__init__(
             instructions=instructions,
         )
         self._on_enter_prompt = on_enter_prompt
         self._room = room
         self._subject_name = subject_name
+        self._opening_line = opening_line
         self._current_speech_id = None
         self._current_speech_text = ""
         self._speech_start_time = 0.0
@@ -300,8 +301,12 @@ class NegotiatorAgent(Agent):
             if len(list(self.session.history.messages())) > 100:
                 self.session.history.truncate(max_items=100)
 
-        self.session.history.add_message(role="user", content="Hello? Are you there?")
-        self.session.generate_reply(instructions=self._on_enter_prompt)
+        if self._opening_line:
+            logger.info(f"[FAST-START] Speaking instant opening line: {self._opening_line}")
+            self.session.say(self._opening_line, allow_interruptions=True, add_to_chat_ctx=True)
+        else:
+            self.session.history.add_message(role="user", content="Hello? Are you there?")
+            self.session.generate_reply(instructions=self._on_enter_prompt)
 
     async def _generate_report(self, outcome: str):
         try:
@@ -488,7 +493,18 @@ async def entrypoint(ctx: JobContext) -> None:
         speaker = select_speaker(name=name, gender=gender, archetype=archetype)
         logger.info(f"Fallback scenario mapped: Name={name}, Gender={gender} -> Speaker={speaker}")
 
-    logger.info(f"[TIMING] metadata parsed + instructions built in {time.time()-t0:.2f}s")
+    opening_line = meta_lower.get("openingline") or meta_lower.get("opening_line") or meta.get("openingLine") or meta.get("opening_line") or ""
+    if not opening_line:
+        if archetype in ("frantic", "desperate"):
+            opening_line = "Don't you dare come any closer! Stay back!"
+        elif archetype == "aggressive":
+            opening_line = "I know what you're trying to do! Tell your officers to back off right now!"
+        elif archetype == "cold":
+            opening_line = "You shouldn't have called this line. Who authorized this?"
+        else:
+            opening_line = "Stay back! Don't you dare come in here!"
+
+    logger.info(f"[TIMING] metadata parsed + instructions built in {time.time()-t0:.2f}s | opening_line='{opening_line}'")
 
     session = AgentSession(
         vad=PRELOADED_VAD,
@@ -528,7 +544,7 @@ async def entrypoint(ctx: JobContext) -> None:
     logger.info(f"[TIMING] session created in {time.time()-t0:.2f}s")
 
     await session.start(
-        agent=NegotiatorAgent(instructions=instructions, on_enter_prompt=on_enter_prompt, room=ctx.room, subject_name=name),
+        agent=NegotiatorAgent(instructions=instructions, on_enter_prompt=on_enter_prompt, room=ctx.room, subject_name=name, opening_line=opening_line),
         room=ctx.room,
     )
     logger.info(f"[TIMING] session.start() completed in {time.time()-t0:.2f}s — agent is now live")
