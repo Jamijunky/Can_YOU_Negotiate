@@ -105,6 +105,9 @@ def clean_spoken_text(text: str) -> str:
             continue
         valid_lines.append(stripped)
     text = ' '.join(valid_lines)
+    # Strip any stray trailing JSON artifacts (e.g., '"]}', '"}', or quotes) if the LLM escaped JSON
+    text = re.sub(r'[\"\']\s*[\}\]]+\s*$', '', text)
+    text = re.sub(r'[\"\'\`]+$', '', text)
     # Collapse multiple ellipses or dot sequences into a single comma pause
     text = re.sub(r'(\s*[\.…]+\s*)+', ', ', text)
     return text.strip()
