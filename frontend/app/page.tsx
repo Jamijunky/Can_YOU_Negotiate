@@ -351,14 +351,11 @@ function SimulationUI({
 
         <button
           onClick={handleDisconnect}
-          className="bg-[#dc2626] hover:bg-[#b91c1c] text-white font-mono text-xs md:text-sm font-black px-4 py-2 border-2 border-[#1e1e1e] shadow-[3px_3px_0_0_#1e1e1e] transition-all cursor-pointer"
+          className="bg-[#dc2626] hover:bg-[#b91c1c] text-white font-mono text-xs md:text-sm font-black px-5 py-2.5 border-2 border-[#1e1e1e] shadow-[3px_3px_0_0_#1e1e1e] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_#1e1e1e] transition-all cursor-pointer flex items-center gap-2"
         >
+          <span className="w-2.5 h-2.5 bg-white rounded-full inline-block" />
           DISCONNECT // END CALL
         </button>
-
-        <div className="bg-[#1e1e1e] p-1 border-2 border-[#d99a4e]" data-lk-theme="default">
-          <VoiceAssistantControlBar controls={{ leave: false }} />
-        </div>
       </div>
     </div>
   );
@@ -370,12 +367,15 @@ function Watchdog({ onDisconnect, isHolding }: { onDisconnect: () => void; isHol
   const room = useRoomContext();
 
   useEffect(() => {
+    // Only alert after room has been connected and the agent was previously present or 20s initial join grace period
     if (room.state === 'connected' && participants.length === 0) {
       const t = setTimeout(() => {
-        alert("Connection Lost: The subject disconnected unexpectedly.");
-        room.disconnect();
-        onDisconnect();
-      }, 5000);
+        if (room.state === 'connected' && participants.length === 0) {
+          alert("Connection Lost: The subject disconnected unexpectedly.");
+          try { room.disconnect(); } catch (e) {}
+          onDisconnect();
+        }
+      }, 15000);
       return () => clearTimeout(t);
     }
   }, [participants.length, room.state, room, onDisconnect]);
