@@ -219,10 +219,6 @@ class NegotiatorAgent(Agent):
                     if item.role == "assistant":
                         item.content = [f"{spoken_part} [Negotiator interrupted you here; you did not finish saying the rest of your statement]"]
                         break
-                for item in reversed(self.chat_ctx.items):
-                    if item.role == "assistant":
-                        item.content = [spoken_part]
-                        break
 
             self._current_speech_id = None
             self._current_speech_text = ""
@@ -257,44 +253,6 @@ class NegotiatorAgent(Agent):
                 except Exception as e:
                     logger.warning(f"Failed to publish user transcript: {e}")
 
-        async def _stream_agent_transcript(speech_id: str, full_text: str):
-            """Progressively streams spoken agent words to the UI in sync with conversational speech pacing (~2.8 words/sec)."""
-            words = full_text.split()
-            if not words:
-                return
-            
-            # Reveal progressively in short natural chunks so transcript doesn't spoil audio ahead of time
-            chunk_size = 3
-            current_words = []
-            
-            for i in range(0, len(words), chunk_size):
-                if self._current_speech_id != speech_id:
-                    # Speech was interrupted or replaced, stop broadcasting
-                    break
-                chunk = words[i:i + chunk_size]
-                current_words.extend(chunk)
-                current_text = " ".join(current_words)
-                
-                if self._room.isconnected and self._room.local_participant:
-                    try:
-                        await self._room.local_participant.publish_data(
-                            json.dumps({
-                                "type": "transcript",
-                                "id": speech_id,
-                                "speaker": "agent",
-                                "senderName": self._subject_name.upper(),
-                                "text": current_text
-                            }).encode("utf-8"),
-                            reliable=True
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to stream agent transcript chunk: {e}")
-                        break
-                
-                # Delay based on word count (~350ms per word)
-                delay = len(chunk) * 0.35
-                await asyncio.sleep(delay)
-
         @self.session.on("conversation_item_added")
         def _on_item_added(ev):
             try:
@@ -308,8 +266,20 @@ class NegotiatorAgent(Agent):
                         self._current_speech_text = cleaned
                         self._speech_start_time = time.time()
                         
-                        # Stream the text in sync with playout rather than dumping the whole paragraph immediately
-                        asyncio.create_task(_stream_agent_transcript(speech_id, cleaned))
+                        # Immediately publish the clean spoken text without artificial sleep delays
+                        if self._room.isconnected and self._room.local_participant:
+                            asyncio.create_task(
+                                self._room.local_participant.publish_data(
+                                    json.dumps({
+                                        "type": "transcript",
+                                        "id": speech_id,
+                                        "speaker": "agent",
+                                        "senderName": self._subject_name.upper(),
+                                        "text": cleaned
+                                    }).encode("utf-8"),
+                                    reliable=True
+                                )
+                            )
             except Exception as e:
                 logger.warning(f"Error handling agent transcript broadcast: {e}")
 
@@ -510,13 +480,13 @@ async def entrypoint(ctx: JobContext) -> None:
         logger.info(f"Fallback scenario mapped: Name={name}, Gender={gender} -> Speaker={speaker}")
 
     session = AgentSession(
-        vad=silero.VAD.load(min_silence_duration=0.4),
+        vad=silero.VAD.load(min_silence_duration=0.25),
         turn_handling={
-            "endpointing": {"min_delay": 0.3, "max_delay": 0.8},
+            "endpointing": {"min_delay": 0.15, "max_delay": 0.45},
             "interruption": {
                 "enabled": True,
                 "mode": "vad",
-                "min_duration": 0.3,
+                "min_duration": 0.25,
                 "resume_false_interruption": False,
             },
             "preemptive_generation": {"enabled": False},
@@ -525,13 +495,14 @@ async def entrypoint(ctx: JobContext) -> None:
         stt=openai.STT(
             base_url="https://api.groq.com/openai/v1",
             api_key=os.environ.get("GROQ_API_KEY"),
-            model="whisper-large-v3"
+            model="whisper-large-v3-turbo"
         ),
         llm=openai.LLM(
             base_url="https://api.groq.com/openai/v1",
             api_key=os.environ.get("GROQ_API_KEY"),
             model="openai/gpt-oss-120b",
-            max_completion_tokens=1024,
+            reasoning_effort="low",
+            max_completion_tokens=512,
             timeout=15.0,
             max_retries=2
         ),
