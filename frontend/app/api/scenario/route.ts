@@ -44,7 +44,12 @@ export async function POST(req: NextRequest) {
         temperature: 0.9,
         max_completion_tokens: 600,
       });
-      result = JSON.parse(completion.choices[0].message.content || '{}');
+      let content = completion.choices[0].message.content || '{}';
+      content = content.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '');
+      result = JSON.parse(content);
+      if (result.briefing && !result.intel) {
+        result.intel = result.briefing;
+      }
     } catch (apiErr: any) {
       console.warn("Groq scenario generation hit limit, using dynamic procedural fallback:", apiErr.message);
       // Fallback procedural generation so UI never hangs

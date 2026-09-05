@@ -774,13 +774,7 @@ export default function Home() {
               token={token}
               connect={true}
               onDisconnected={disconnect}
-              audio={{
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-                channelCount: 1,
-                sampleRate: 48000,
-              }}
+              audio={true}
               video={false}
             >
               <Watchdog onDisconnect={disconnect} isHolding={tacticalHold} />
