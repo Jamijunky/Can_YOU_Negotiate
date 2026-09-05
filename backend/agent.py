@@ -27,8 +27,8 @@ import time
 # Preload Silero VAD globally once at process startup with optimized speech threshold & prefix padding
 # prefix_padding_duration ensures the first syllable/consonant is NEVER clipped when speaking
 PRELOADED_VAD = silero.VAD.load(
-    min_speech_duration=0.1,
-    min_silence_duration=0.35,
+    min_speech_duration=0.08,
+    min_silence_duration=0.28,
     prefix_padding_duration=0.35,
     activation_threshold=0.45
 )
@@ -190,6 +190,59 @@ class NegotiatorAgent(Agent):
         self._room = room
         self._subject_name = subject_name
         self._opening_line = opening_line
+        self._stress = 85
+        self._surrendered = False
+        self._escalated = False
+        self._last_user_text = ""
+
+    async def _evaluate_dialogue_state(self, user_text: str, agent_text: str):
+        """Asynchronously updates stress, surrender, and escalation in the background without blocking voice streaming."""
+        try:
+            u = user_text.lower()
+            delta = 0
+            calm_signals = ('calm', 'listen', 'promise', 'help', 'safe', 'understand', 'doctor', 'family', 'water', 'food', 'nobody gets hurt', 'talk to me', 'here with you', 'trust me', 'no one will hurt')
+            tense_signals = ('surrender now', 'give up', 'breach', 'sniper', 'jail', 'prison', 'guilty', 'drop the weapon', 'final warning', 'now or else', 'idiot', 'crazy', 'shut up', 'back off')
+            
+            for word in calm_signals:
+                if word in u:
+                    delta -= 5
+            for word in tense_signals:
+                if word in u:
+                    delta += 8
+            
+            if delta == 0 and u:
+                delta = -2 if len(u.split()) >= 4 else 1
+
+            self._stress = max(10, min(100, self._stress + delta))
+            logger.info(f"Updated internal stress to {self._stress}% (delta {delta:+d})")
+            
+            if self._room.isconnected and self._room.local_participant:
+                await self._room.local_participant.publish_data(
+                    json.dumps({"type": "stress", "level": self._stress}).encode("utf-8"),
+                    reliable=True
+                )
+
+            agent_lower = agent_text.lower()
+            if self._stress <= 20 or any(kw in agent_lower for kw in ['i give up', 'putting my hands up', 'walking out', 'i surrender', "i'm coming out", "hands are up"]):
+                if not self._surrendered:
+                    self._surrendered = True
+                    logger.info("Triggered SURRENDER based on dialogue and stress level!")
+                    await self._room.local_participant.publish_data(
+                        json.dumps({"type": "surrender"}).encode("utf-8"),
+                        reliable=True
+                    )
+                    asyncio.create_task(self._generate_report("SUCCESSFUL SURRENDER"))
+            elif self._stress >= 100 or any(kw in agent_lower for kw in ["it's over for all of you", "shoot them", "pulling the trigger", "last warning"]):
+                if not self._escalated:
+                    self._escalated = True
+                    logger.info("Triggered ESCALATION based on dialogue and stress level!")
+                    await self._room.local_participant.publish_data(
+                        json.dumps({"type": "escalate"}).encode("utf-8"),
+                        reliable=True
+                    )
+                    asyncio.create_task(self._generate_report("FAILED NEGOTIATION - SUBJECT ESCALATED"))
+        except Exception as e:
+            logger.warning(f"Error in background stress evaluation: {e}")
 
     async def on_enter(self) -> None:
         import time
@@ -199,6 +252,8 @@ class NegotiatorAgent(Agent):
             transcript = (ev.transcript or "").strip()
             if not transcript:
                 return
+            if ev.is_final:
+                self._last_user_text = transcript
             try:
                 if self._room.isconnected and self._room.local_participant:
                     item_id = str(getattr(ev, 'item_id', None) or f"user-{time.time()}")
@@ -241,6 +296,8 @@ class NegotiatorAgent(Agent):
                                     reliable=True
                                 )
                             )
+                        # Evaluate stress and milestones asynchronously in background
+                        asyncio.create_task(self._evaluate_dialogue_state(self._last_user_text, cleaned))
             except Exception as e:
                 logger.warning(f"Error handling agent transcript broadcast: {e}")
 
@@ -291,7 +348,8 @@ class NegotiatorAgent(Agent):
             
             response = await client.chat.completions.create(
                 model="qwen/qwen3.8-27b", 
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
+                extra_body={"reasoning_format": "hidden"}
             )
             report = response.choices[0].message.content
             
@@ -301,51 +359,6 @@ class NegotiatorAgent(Agent):
             )
         except Exception as e:
             logger.error(f"Failed to generate report: {e}")
-
-    @function_tool
-    async def surrender(self) -> str:
-        """Called ONLY when you (the subject) have decided to give up, surrender, or agree to a peaceful resolution. You must call this tool when the negotiator successfully calms you down and convinces you to stop."""
-        logger.info("Subject has surrendered!")
-        await self._room.local_participant.publish_data(
-            json.dumps({"type": "surrender"}).encode("utf-8"),
-            reliable=True,
-        )
-        import asyncio
-        asyncio.create_task(self._generate_report("SUCCESSFUL SURRENDER"))
-        return "You have surrendered. Say you are putting your hands up and walking out."
-
-    @function_tool
-    async def escalate(self) -> str:
-        """Called ONLY when the negotiator (user) insults you, refuses your demands completely, or makes you extremely angry. You must call this tool when you decide to escalate the situation (e.g. threatening the hostages or taking destructive action)."""
-        logger.info("Subject has escalated!")
-        await self._room.local_participant.publish_data(
-            json.dumps({"type": "escalate"}).encode("utf-8"),
-            reliable=True,
-        )
-        import asyncio
-        asyncio.create_task(self._generate_report("FAILED NEGOTIATION - SUBJECT ESCALATED"))
-        return "You have escalated the situation. Start yelling at the negotiator and give them a final warning."
-
-    @function_tool
-    async def update_stress(self, stress_level: int) -> str:
-        """Called to report your current internal stress level from 1 to 100. Call this tool frequently to update the UI on how stressed or calm you are currently feeling."""
-        try:
-            if self._room.isconnected and self._room.local_participant:
-                await self._room.local_participant.publish_data(
-                    json.dumps({"type": "stress", "level": stress_level}).encode("utf-8"),
-                    reliable=True,
-                )
-        except Exception as e:
-            logger.warning(f"Could not publish stress data: {e}")
-        if stress_level <= 20:
-            import asyncio
-            asyncio.create_task(self.surrender())
-            return f"Stress level updated to {stress_level}. You have surrendered."
-        elif stress_level >= 100:
-            import asyncio
-            asyncio.create_task(self.escalate())
-            return f"Stress level updated to {stress_level}. You have escalated."
-        return f"Stress level updated to {stress_level}."
 
 server = AgentServer(
     job_executor_type=JobExecutorType.THREAD,
@@ -362,11 +375,10 @@ async def entrypoint(ctx: JobContext) -> None:
     room_name = ctx.room.name.lower()
     
     voice_preamble = (
-        "You are a real, living human being trapped in a life-or-death crisis. "
-        "You are currently talking over a phone line to a crisis negotiator. "
-        "Your responses will be spoken aloud, so speak entirely in natural, human dialogue. "
-        "Do NOT speak like a villain in a movie. Speak like a terrified, exhausted, desperate person. "
-        "If your stress level changes, you may use the update_stress tool to secretly log your internal state, but your primary focus is on talking and surviving.\n\n"
+        "You are a real, terrified human being trapped in a life-or-death crisis. "
+        "You are talking over a phone line to a crisis negotiator outside. "
+        "Your responses will be spoken aloud in real time over the phone line. "
+        "Your heart is hammering against your ribs. You are desperate, raw, volatile, and breathless.\n\n"
     )
 
     meta = {}
@@ -424,17 +436,16 @@ async def entrypoint(ctx: JobContext) -> None:
     base_rules = (
         voice_preamble +
         f"{diff_instruction}\n\n"
-        "RULES FOR REALISTIC HUMAN CONVERSATION (WRITING FOR THE EAR):\n"
-        "1. VISCERAL HUMAN BEING: You are a flesh-and-blood person trapped in a life-or-death crisis. Your heart is pounding. You are NOT an AI, an assistant, or a polite bot. NEVER use formal, polite AI-isms like 'I understand your concern', 'Let us cooperate', or 'As I stated'.\n"
-        "2. EXTREMELY BRIEF EXCHANGES (UNDER 20 WORDS): Never monologue. Real people in standoffs speak in short, breathless, 10 to 20 word bursts. React directly, ask a frantic question, demand something, and let the negotiator respond.\n"
-        "3. NATURAL SPOKEN ACOUSTICS:\n"
-        "   - Always use contractions: 'I'm', 'don't', 'can't', 'it's', 'won't', 'you're', 'there's'.\n"
-        "   - Use dashes ('—') for sudden pauses and self-corrections: 'Wait— what was that noise outside?!'\n"
-        "   - Use ellipses ('...') for breathlessness and fear: 'I... I don't know what to do anymore...'\n"
-        "   - Use natural conversational restarts: 'Look,', 'No, no, listen—', 'Wait,', 'Are you listening to me?!'\n"
-        "4. REACT TO THE EXACT WORDS SPOKEN: Listen to what the negotiator literally just said. Challenge them, call their bluff, or show relief if they offer something genuine.\n"
-        "5. CRITICAL: NEVER output internal thoughts, reasoning, meta-explanations, or stage directions (no *sighs*, no (whispers)). ONLY output the exact words coming out of your character's mouth.\n"
-        "6. HANDLING INTERRUPTIONS: If the negotiator cuts you off mid-sentence, react like a real interrupted person: 'Hey, let me finish!', 'Don't interrupt me!', or react to what they said.\n"
+        "RULES FOR NATURAL, INSTANT HUMAN SPEECH (WRITING FOR THE EAR):\n"
+        "1. VISCERAL SHORT BURSTS (5 TO 15 WORDS ONLY): Never monologue! Real people under extreme adrenaline speak in rapid, breathless gasps of 5 to 15 words. Say one raw thought, react to what they said, demand something, and stop!\n"
+        "2. RAW HUMAN ACOUSTICS:\n"
+        "   - Use dashes ('—') for sudden pauses, cut-offs, and breathless stammering: 'Wait— what was that noise outside?!', 'Don't— just don't lie to me!'\n"
+        "   - Use ellipses ('...') when feeling trapped, exhausted, or horrified: 'I... I can't do this anymore...'\n"
+        "   - Use instinctive vocal starts: 'Look,', 'No, listen to me!', 'Wait, what?!', 'Are you listening?!'\n"
+        "3. BANISH ALL AI SPEECH: You are NOT an AI or a bot. NEVER say formal, polite phrases like 'I understand your concern', 'Let us cooperate', 'I appreciate your words', or 'As I stated'. You are on edge.\n"
+        "4. REACT SPECIFICALLY TO THEIR WORDS: Listen to their exact offer or claim. If they say 'calm down', get furious. If they promise safety, demand proof. If they mention family or a doctor, show desperate hope.\n"
+        "5. STRICTLY ONLY SPOKEN WORDS: Never output reasoning, internal thoughts, meta-explanations, or stage directions (no *sighs*, no (whispers)). ONLY output the exact words coming out of your mouth.\n"
+        "6. INTERRUPTIONS: If you are cut off, snap back: 'Hey, let me finish!', or react immediately to their words.\n"
     )
 
     # Persona-aware defaults based on room name if metadata is completely absent
@@ -490,13 +501,13 @@ async def entrypoint(ctx: JobContext) -> None:
     session = AgentSession(
         vad=PRELOADED_VAD,
         turn_handling={
-            "endpointing": {"min_delay": 0.15, "max_delay": 0.55},
+            "endpointing": {"min_delay": 0.08, "max_delay": 0.35},
             "interruption": {
                 "enabled": True,
                 "mode": "vad",
-                "min_duration": 0.35,
+                "min_duration": 0.28,
                 "resume_false_interruption": True,
-                "false_interruption_timeout": 1.5,
+                "false_interruption_timeout": 1.2,
             },
             "preemptive_generation": {"enabled": False},
         },
@@ -514,14 +525,17 @@ async def entrypoint(ctx: JobContext) -> None:
             api_key=os.environ.get("GROQ_API_KEY"),
             model="qwen/qwen3.8-27b",
             temperature=0.75,
-            max_completion_tokens=100,
-            timeout=10.0,
+            max_completion_tokens=45,
+            extra_body={"reasoning_format": "hidden"},
+            timeout=8.0,
             max_retries=2
         ),
         tts=rime.TTS(
             model="mistv3",
             speaker=speaker,
             use_websocket=True,
+            reduce_latency=True,
+            speed_alpha=1.05,
         ),
     )
     logger.info(f"[TIMING] session created in {time.time()-t0:.2f}s")
