@@ -24,6 +24,9 @@ import re
 import json
 import time
 
+from cognition.schemas import PsychologicalState, Personality, RelationshipState, HumanModel
+from cognition.state_engine import StateUpdateSignal, apply_state_transition
+
 # Preload Silero VAD globally once at process startup with optimized speech threshold & prefix padding
 # prefix_padding_duration ensures the first syllable/consonant is NEVER clipped when speaking
 PRELOADED_VAD = silero.VAD.load(
@@ -182,7 +185,7 @@ async def filter_inner_thoughts(text_stream):
 
 
 class NegotiatorAgent(Agent):
-    def __init__(self, instructions: str, on_enter_prompt: str, room, subject_name: str = "Alex", opening_line: str = "") -> None:
+    def __init__(self, instructions: str, on_enter_prompt: str, room, subject_name: str = "Alex", opening_line: str = "", archetype: str = "") -> None:
         super().__init__(
             instructions=instructions,
         )
@@ -190,10 +193,34 @@ class NegotiatorAgent(Agent):
         self._room = room
         self._subject_name = subject_name
         self._opening_line = opening_line
+        self._archetype = archetype
+        
+        volatility, impulsivity, dominance = 0.5, 0.5, 0.5
+        if archetype == "frantic":
+            volatility, impulsivity, dominance = 0.9, 0.8, 0.3
+        elif archetype == "aggressive":
+            volatility, impulsivity, dominance = 0.8, 0.7, 0.8
+        elif archetype == "desperate":
+            volatility, impulsivity, dominance = 0.7, 0.6, 0.4
+        elif archetype == "paranoid":
+            volatility, impulsivity, dominance = 0.6, 0.4, 0.6
+            
+        self._model = HumanModel(
+            personality=Personality(
+                impulsivity=impulsivity,
+                dominance=dominance,
+                emotional_volatility=volatility,
+            ),
+            psychology=PsychologicalState(stress=85, fear=70, anger=60, desperation=80, sense_of_control=20, guilt=10),
+            relationship=RelationshipState(trust=10, perceived_threat=80)
+        )
+        
         self._stress = 85
         self._surrendered = False
         self._escalated = False
         self._last_user_text = ""
+        self._cut_off = False
+        self._last_directive_msg = None
 
     async def _evaluate_dialogue_state(self, user_text: str, agent_text: str):
         """Asynchronously updates stress, surrender, and escalation in the background without blocking voice streaming."""
@@ -246,6 +273,20 @@ class NegotiatorAgent(Agent):
 
     async def on_enter(self) -> None:
         import time
+        self._last_speech_time = time.time()
+        self._nudge_count = 0
+
+        async def _dead_air_loop():
+            while True:
+                await asyncio.sleep(1.0)
+                if time.time() - self._last_speech_time > 3.5 and self._nudge_count < 1:
+                    logger.info("Dead air detected, nudging user...")
+                    self.session.chat_ctx.messages.append(llm.ChatMessage(role="system", content="[SYSTEM] The user has been silent for 3.5 seconds. Give a very short, anxious 2-4 word nudge (e.g. 'You there?', 'Hello?', 'Don't go silent on me.')."))
+                    self.session.generate_reply()
+                    self._nudge_count += 1
+                    self._last_speech_time = time.time()
+
+        asyncio.create_task(_dead_air_loop())
 
         @self.session.on("user_input_transcribed")
         def _on_user_input(ev):
@@ -254,6 +295,54 @@ class NegotiatorAgent(Agent):
                 return
             if ev.is_final:
                 self._last_user_text = transcript
+                self._last_speech_time = time.time()
+                self._nudge_count = 0
+                
+                # Heuristic Appraisal
+                u = transcript.lower()
+                threat_delta = hope_delta = respect_delta = 0
+                
+                calm_signals = ('calm', 'listen', 'promise', 'help', 'safe', 'understand', 'doctor', 'family', 'water', 'food', 'nobody gets hurt', 'talk to me', 'here with you', 'trust me', 'no one will hurt')
+                tense_signals = ('surrender now', 'give up', 'breach', 'sniper', 'jail', 'prison', 'guilty', 'drop the weapon', 'final warning', 'now or else', 'idiot', 'crazy', 'shut up', 'back off')
+                
+                for word in calm_signals:
+                    if word in u:
+                        hope_delta += 10
+                        threat_delta -= 10
+                for word in tense_signals:
+                    if word in u:
+                        threat_delta += 20
+                        respect_delta -= 10
+                        
+                signal = StateUpdateSignal(threat_delta=threat_delta, hope_delta=hope_delta, respect_delta=respect_delta)
+                new_psych, meta = apply_state_transition(self._model.psychology, self._model.personality, signal)
+                self._model.psychology = new_psych
+                
+                # Compute cognitive pacing based on state
+                pacing = "normal"
+                derived_speed = 1.05
+                if new_psych.fear > 80 or new_psych.anger > 80:
+                    pacing = "erratic and fast"
+                    derived_speed = 1.15
+                elif new_psych.fear > 60:
+                    pacing = "anxious and hesitant"
+                    derived_speed = 1.0
+                elif new_psych.anger > 60:
+                    pacing = "hostile and tense"
+                    derived_speed = 1.10
+                    
+                # Update TTS plugin dynamically if possible, or we just rely on LLM expression
+                
+                cut_off_str = " (You were just CUT OFF by the negotiator. SNAP BACK or react angrily to being interrupted.)" if self._cut_off else ""
+                self._cut_off = False
+                
+                directive_text = f"[COGNITIVE DIRECTIVE] State: Fear={int(new_psych.fear)} Anger={int(new_psych.anger)} Stress={int(new_psych.stress)}. Pacing: {pacing}. Keep reply under 2 lines.{cut_off_str}"
+                logger.info(f"Generated sidecar directive: {directive_text}")
+                
+                # Inject directive into session history
+                msg = llm.ChatMessage(role="system", content=directive_text)
+                self.session.chat_ctx.messages.append(msg)
+                
             try:
                 if self._room.isconnected and self._room.local_participant:
                     item_id = str(getattr(ev, 'item_id', None) or f"user-{time.time()}")
@@ -273,8 +362,14 @@ class NegotiatorAgent(Agent):
             except Exception as e:
                 logger.warning(f"Failed to publish user transcript: {e}")
 
+        @self.session.on("agent_speech_interrupted")
+        def _on_interrupted(ev):
+            logger.info("Agent speech interrupted!")
+            self._cut_off = True
+
         @self.session.on("conversation_item_added")
         def _on_item_added(ev):
+            self._last_speech_time = time.time()
             try:
                 msg = ev.item
                 if msg.role == "assistant" and msg.text_content:
@@ -501,7 +596,7 @@ async def entrypoint(ctx: JobContext) -> None:
     session = AgentSession(
         vad=PRELOADED_VAD,
         turn_handling={
-            "endpointing": {"min_delay": 0.08, "max_delay": 0.35},
+            "endpointing": {"min_delay": 0.12, "max_delay": 0.55},
             "interruption": {
                 "enabled": True,
                 "mode": "vad",
@@ -540,7 +635,7 @@ async def entrypoint(ctx: JobContext) -> None:
     logger.info(f"[TIMING] session created in {time.time()-t0:.2f}s")
 
     await session.start(
-        agent=NegotiatorAgent(instructions=instructions, on_enter_prompt=on_enter_prompt, room=ctx.room, subject_name=name, opening_line=opening_line),
+        agent=NegotiatorAgent(instructions=instructions, on_enter_prompt=on_enter_prompt, room=ctx.room, subject_name=name, opening_line=opening_line, archetype=archetype),
         room=ctx.room,
     )
     logger.info(f"[TIMING] session.start() completed in {time.time()-t0:.2f}s — agent is now live")

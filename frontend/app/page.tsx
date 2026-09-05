@@ -101,7 +101,7 @@ const MissionStatus = memo(function MissionStatus({ onReport }: { onReport: (r: 
         />
       </div>
       <div className="absolute top-2 left-6 z-30 font-mono text-xs font-bold px-2 py-1 bg-[#1e1e1e] text-[#f4f0e6]">
-        STRESS: {stress}%
+        STRESS_MONITOR
       </div>
 
       {/* Surrender screen */}
@@ -150,9 +150,77 @@ interface TranscriptItem {
   isFinal?: boolean;
 }
 
+function AudioCover({ isDispatching, isHolding }: { isDispatching: boolean; isHolding: boolean }) {
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    let osc: OscillatorNode | null = null;
+    let gain: GainNode | null = null;
+    
+    if (isDispatching) {
+      // Short dial click / noise burst
+      osc = ctx.createOscillator();
+      gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(400, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.1);
+      
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.05, ctx.currentTime + 0.05);
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.5);
+    } else if (isHolding) {
+      // Low line hum
+      osc = ctx.createOscillator();
+      gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(60, ctx.currentTime);
+      
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.02, ctx.currentTime + 0.5);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+    }
+    
+    return () => {
+      if (gain && isHolding) {
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.2);
+      }
+      if (osc) {
+        try { osc.stop(ctx.currentTime + 0.2); } catch(e) {}
+      }
+      setTimeout(() => {
+         if (ctx.state !== 'closed') ctx.close();
+      }, 300);
+    };
+  }, [isDispatching, isHolding]);
+  
+  return null;
+}
+
+function IntelDisplay({ intel }: { intel: string }) {
+  const { state } = useVoiceAssistant();
+  const isSpeaking = state === 'speaking';
+  return (
+    <div className={`mb-6 p-3 bg-white/10 border border-[#f4f0e6]/20 font-serif text-sm text-[#f4f0e6]/90 text-left transition-opacity duration-300 ${isSpeaking ? 'opacity-40' : 'opacity-100'}`}>
+      <strong className="font-mono uppercase tracking-widest text-[#dc2626] text-xs mr-2">Subject Intel:</strong>
+      {intel}
+    </div>
+  );
+}
+
 const LiveTranscriptFeed = memo(function LiveTranscriptFeed({ subjectName }: { subjectName: string }) {
   const [transcripts, setTranscripts] = useState<TranscriptItem[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  const { state } = useVoiceAssistant();
+  const isSpeaking = state === 'speaking';
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -214,7 +282,7 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({ subjectName }: { s
   useDataChannel(handleData);
 
   return (
-    <div className="w-full max-w-2xl mt-6 bg-[#1e1e1e] border-2 border-[#d99a4e] p-4 text-left shadow-[6px_6px_0_0_#1e1e1e]">
+    <div className={`w-full max-w-2xl mt-6 bg-[#1e1e1e] border-2 border-[#d99a4e] p-4 text-left shadow-[6px_6px_0_0_#1e1e1e] transition-opacity duration-300 ${isSpeaking ? 'opacity-40' : 'opacity-100'}`}>
       <div className="flex items-center justify-between border-b border-[#f4f0e6]/20 pb-2 mb-3">
         <div className="font-mono text-xs font-bold tracking-widest text-[#d99a4e] uppercase flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse" />
@@ -406,6 +474,7 @@ const SimulationUI = memo(function SimulationUI({
           DISCONNECT // END CALL
         </button>
       </div>
+      <AudioCover isDispatching={isDispatching} isHolding={tacticalHold} />
     </div>
   );
 });
@@ -527,6 +596,8 @@ export default function Home() {
       setScenarioData(DEFAULT_SCENARIOS[persona]);
     }
     const generate = async () => {
+      // Proactively wake up backend
+      fetch('https://can-you-negotiate-agent.onrender.com', { mode: 'no-cors' }).catch(() => {});
       try {
         setIsGeneratingIntel(true);
         const scenarioRes = await fetch('/api/scenario', {
@@ -602,56 +673,57 @@ export default function Home() {
 
 
   return (
-    <main className="min-h-screen bg-[#f4f0e6] flex flex-col items-center justify-start overflow-x-hidden relative py-12 px-4">
+    <main className={`min-h-screen flex flex-col items-center justify-start overflow-x-hidden relative py-12 px-4 transition-colors duration-700 ${token ? 'bg-[#0f0f0f]' : 'bg-[#f4f0e6]'}`}>
       {/* Background EKG line (Left side) */}
-      <div className="fixed top-0 left-0 bottom-0 w-48 md:w-64 opacity-[0.04] pointer-events-none">
-        <svg viewBox="0 0 300 1200" className="w-full h-full stroke-black fill-none" strokeWidth="8" preserveAspectRatio="none">
+      <div className={`fixed top-0 left-0 bottom-0 w-48 md:w-64 pointer-events-none transition-opacity duration-700 ${token ? 'opacity-[0.02]' : 'opacity-[0.04]'}`}>
+        <svg viewBox="0 0 300 1200" className={`w-full h-full fill-none ${token ? 'stroke-[#f4f0e6]' : 'stroke-black'}`} strokeWidth="8" preserveAspectRatio="none">
           <path d="M150,0 L150,300 L50,350 L250,400 L150,450 L150,700 L20,750 L280,800 L150,850 L150,1200" strokeLinejoin="miter" strokeLinecap="square" />
         </svg>
       </div>
 
-      <div className="max-w-4xl w-full flex flex-col items-center text-center z-10 space-y-8">
-
-        {/* Title */}
-        <div className="relative mt-12">
-          <div className="absolute -inset-2 bg-[#d99a4e] translate-x-2 translate-y-3 -z-10 mix-blend-multiply opacity-80" />
-          <div className="absolute -left-8 -top-6 bg-[#1e1e1e] text-[#f4f0e6] font-mono text-xl px-4 py-1 rotate-[-5deg] z-10">
-            Can you
+      {!token && (
+        <div className="max-w-4xl w-full flex flex-col items-center text-center z-10 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Title */}
+          <div className="relative mt-12">
+            <div className="absolute -inset-2 bg-[#d99a4e] translate-x-2 translate-y-3 -z-10 mix-blend-multiply opacity-80" />
+            <div className="absolute -left-8 -top-6 bg-[#1e1e1e] text-[#f4f0e6] font-mono text-xl px-4 py-1 rotate-[-5deg] z-10">
+              Can you
+            </div>
+            <h1 className="text-7xl md:text-9xl font-serif font-black tracking-tighter text-[#1e1e1e] uppercase border-4 border-[#1e1e1e] px-6 py-2 bg-[#f4f0e6]">
+              Negotiate
+            </h1>
+            <div className="absolute -right-8 -bottom-4 text-[#dc2626] font-serif font-black text-6xl md:text-8xl rotate-[15deg] z-10 drop-shadow-md">
+              ?
+            </div>
           </div>
-          <h1 className="text-7xl md:text-9xl font-serif font-black tracking-tighter text-[#1e1e1e] uppercase border-4 border-[#1e1e1e] px-6 py-2 bg-[#f4f0e6]">
-            Negotiate
-          </h1>
-          <div className="absolute -right-8 -bottom-4 text-[#dc2626] font-serif font-black text-6xl md:text-8xl rotate-[15deg] z-10 drop-shadow-md">
-            ?
+
+          <p className="text-xl md:text-2xl font-serif text-[#1e1e1e]/80 italic mt-8 max-w-lg bg-[#f4f0e6]/80 p-2 whitespace-pre-line text-center">
+            De-escalation via verbal interrupt.{"\n"}
+            Calm the subject.
+          </p>
+
+          {/* Mission brief */}
+          <div className="w-full max-w-2xl bg-[#f4f0e6] border-4 border-[#1e1e1e] p-8 text-left relative mt-8 shadow-[8px_8px_0_0_#d99a4e]">
+            <div className="absolute -top-3 left-4 bg-[#f4f0e6] px-2 text-sm font-bold uppercase tracking-widest text-[#d99a4e]">
+              MISSION_BRIEF
+            </div>
+            <ol className="text-left font-serif text-lg space-y-4 text-[#1e1e1e]/90 leading-relaxed">
+              <li className="flex gap-4">
+                <span className="font-mono text-[#d99a4e] font-bold">/01</span>
+                <span>The subject is highly panicked and will immediately begin a hostile rant.</span>
+              </li>
+              <li className="flex gap-4">
+                <span className="font-mono text-[#d99a4e] font-bold">/02</span>
+                <span>Listen closely for clues and pull the right threads to uncover their <strong className="font-black">hidden backstory</strong>.</span>
+              </li>
+              <li className="flex gap-4">
+                <span className="font-mono text-[#d99a4e] font-bold">/03</span>
+                <span>Use empathy to lower their <strong className="font-black">Stress Level</strong> and force a peaceful surrender.</span>
+              </li>
+            </ol>
           </div>
         </div>
-
-        <p className="text-xl md:text-2xl font-serif text-[#1e1e1e]/80 italic mt-8 max-w-lg bg-[#f4f0e6]/80 p-2 whitespace-pre-line text-center">
-          De-escalation via verbal interrupt.{"\n"}
-          Calm the subject.
-        </p>
-
-        {/* Mission brief */}
-        <div className="w-full max-w-2xl bg-[#f4f0e6] border-4 border-[#1e1e1e] p-8 text-left relative mt-8 shadow-[8px_8px_0_0_#d99a4e]">
-          <div className="absolute -top-3 left-4 bg-[#f4f0e6] px-2 text-sm font-bold uppercase tracking-widest text-[#d99a4e]">
-            MISSION_BRIEF
-          </div>
-          <ol className="text-left font-serif text-lg space-y-4 text-[#1e1e1e]/90 leading-relaxed">
-            <li className="flex gap-4">
-              <span className="font-mono text-[#d99a4e] font-bold">/01</span>
-              <span>The subject is highly panicked and will immediately begin a hostile rant.</span>
-            </li>
-            <li className="flex gap-4">
-              <span className="font-mono text-[#d99a4e] font-bold">/02</span>
-              <span>Listen closely for clues and pull the right threads to uncover their <strong className="font-black">hidden backstory</strong>.</span>
-            </li>
-            <li className="flex gap-4">
-              <span className="font-mono text-[#d99a4e] font-bold">/03</span>
-              <span>Use empathy to lower their <strong className="font-black">Stress Level</strong> and force a peaceful surrender.</span>
-            </li>
-          </ol>
-        </div>
-      </div>
+      )}
 
       <div className="z-10 mt-12 w-full max-w-4xl flex justify-center">
         {report ? (
@@ -763,11 +835,7 @@ export default function Home() {
             <div className="absolute top-0 right-0 bg-[#d99a4e] text-[#1e1e1e] font-mono text-xs font-bold px-3 py-1 border-b-4 border-l-4 border-[#1e1e1e]">
               LIVE_FEED // SUBJECT: {currentName}
             </div>
-            {/* Dossier Display during connection */}
-            <div className="mb-6 p-3 bg-white/50 border border-[#1e1e1e]/20 font-serif text-sm text-[#1e1e1e]/90 text-left">
-              <strong className="font-mono uppercase tracking-widest text-[#dc2626] text-xs mr-2">Subject Intel:</strong>
-              {currentIntel}
-            </div>
+            {/* Dossier Display handled by IntelDisplay inside LiveKitRoom */}
             
             <LiveKitRoom
               serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
@@ -777,6 +845,7 @@ export default function Home() {
               audio={true}
               video={false}
             >
+              <IntelDisplay intel={currentIntel} />
               <Watchdog onDisconnect={disconnect} isHolding={tacticalHold} />
               <SimulationUI
                 subjectName={currentName}
