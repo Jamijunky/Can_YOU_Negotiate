@@ -1,57 +1,46 @@
-# Rime Voice AI Evidence & Acceptance Benchmarks
+# Rime Voice Evidence & Acceptance Tests
 
-## 🏆 Hard Voice Claim
-**Full-Duplex Interruption & Recovery with Character-Congruent Acoustic Profiling**.
+## Why Voice Matters Here
 
-In high-stress negotiations, human speech cannot be approximated with static turns or text prompts. Panicked speech contains fragmented clauses, breathless cadence, and sudden halts. When the crisis negotiator talks over the subject, the audio playback must cut off within human conversational latency (~300–500ms), purge unspoken sentences from memory, and react emotionally to the cutoff.
+Text chatbots don't work for crisis negotiation. The whole dynamic hinges on pacing, pauses, emotional crack in the voice, and whether you can interrupt someone before they pull a trigger. 
+
+We used Rime's `mistv3` voice model connected to LiveKit's WebRTC agent pipeline to test full-duplex conversational voice with sub-second interruption and realistic character acting.
 
 ---
 
-## 📊 Latency Benchmarks (Measured in Live WebRTC Sessions)
+## Latency Numbers (Measured Live)
 
-| Pipeline Component | Technology | Latency |
+| Step | What We Used | Observed Latency |
 | :--- | :--- | :--- |
-| **Voice Activity Detection (VAD)** | Silero VAD (0.3s speech window) | ~300 ms |
-| **Full-Duplex Audio Transport** | LiveKit WebRTC (Cloud SFU) | ~40 - 65 ms |
-| **Speech-to-Text (STT)** | OpenAI Whisper-large-v3 on Groq LPUs | ~190 - 240 ms |
-| **LLM Reasoning & Turn Generation** | GPT-OSS-120B / Llama 3 on Groq | ~480 - 620 ms |
-| **TTS Synthesis & Streaming Playout** | Rime Mist v3 (WebSocket) | ~210 - 280 ms TTFB |
-| **Barge-in Playout Cutoff** | LiveKit SpeechHandle cancellation | **~250 ms total cutoff** |
+| **Barge-in detection (VAD)** | Silero VAD (0.3s speech threshold) | ~300ms |
+| **WebRTC audio roundtrip** | LiveKit Cloud | ~40 - 65ms |
+| **STT transcription** | Whisper Large v3 on Groq | ~200 - 240ms |
+| **LLM response generation** | GPT-OSS-120B / Llama 3 on Groq | ~500 - 620ms |
+| **TTS first audio chunk (TTFB)** | Rime Mist v3 (WebSocket) | ~220 - 280ms |
+| **Total time from user speech to subject audio stopping** | Silero VAD + LiveKit buffer flush | **~250 - 350ms** |
 
 ---
 
-## 🧪 Acceptance Test Procedure
+## Acceptance Tests
 
-### Test 1: Full-Duplex Barge-In & Context Truncation
-1. Connect to room with subject **Maria (The Cornered Thief)**.
-2. Maria starts her initial opening rant:
-   > *"I don't know what to do! Everything is falling apart... I didn't want to hurt anybody, but the alarm went off and now there are sirens everywhere! Don't you dare come in here!"*
-3. At second 2 (while she is saying *"I didn't want to hurt anybody..."*), the negotiator speaks firmly into the microphone:
-   > *"Maria, listen to me right now! Nobody is coming in. Take a deep breath."*
-4. **Observed Results**:
-   - **Audio Playout Cutoff**: Rime audio stops in <350ms.
-   - **Context Truncation**: The LLM turn context truncates her assistant message down to:
-     `"I don't know what to do! Everything is falling apart... I didn't want to hurt anybody... [Negotiator interrupted you here; you did not finish saying the rest of your statement]"`.
-   - **Spoken Text Feed**: The UI comms log displays only the words actually uttered before interruption (`...`), rather than the unuttered remainder of the paragraph.
-   - **Recovery Turn**: Maria immediately responds to the interruption:
-     > *"Don't tell me to breathe! How do I know you're not lying to me?!"*
+### 1. The Mid-Sentence Interruption Test
+- **Setup**: Start a call with Maria (The Cornered Thief).
+- **Behavior**: She starts ranting immediately: *"I don't know what to do! Everything is falling apart... I didn't want to hurt anybody, but the alarm went off and now there are sirens everywhere! Don't you dare come in here!"*
+- **Action**: Around word 6 or 7, speak loudly: *"Maria, hold on! Stop and take a deep breath."*
+- **Expected Outcome**:
+  - Rime audio stops playing in under 350ms.
+  - The transcript box cuts off with `...` right around where she stopped talking, instead of showing the rest of the monologue.
+  - Her internal chat context replaces the unsaid words with a note that she got cut off.
+  - Her next response reacts directly to being interrupted (*"Don't tell me to breathe! You don't know what's happening!"*).
 
----
+### 2. Voice Persona Mapping
+We tested different Rime voices to find which ones actually sound distressed or defensive rather than robotic:
+- **`marley`**: Best female voice for panicked/frantic delivery. High breathiness and natural pauses.
+- **`marsh`**: Best male voice for someone on the verge of tears or spiraling out of control.
+- **`colin`**: Fast, aggressive attack. Works well for hostile, suspicious characters.
+- **`amber`**: Sharp and agitated tone.
+- **`trent` / `reese`**: Lower-energy, defensive pacing for calculating or cornered corporate characters.
 
-### Test 2: Dynamic Acoustic Profiling by Persona & Gender
-1. Select **Female + Desperate** (e.g., Maria, Cornered Thief):
-   - Mapped Speaker: **`marley`** (Rime Mist v3).
-   - Acoustic Traits: Tremulous pitch, breathy vocal exhaustion, natural conversational filler restarts.
-2. Select **Male + Aggressive** (e.g., Arthur, Scammed Investor):
-   - Mapped Speaker: **`colin`** (Rime Mist v3).
-   - Acoustic Traits: Tense vocal cords, aggressive attack, staccato delivery.
-3. Select **Male + Desperate** (e.g., Alex, Embezzler):
-   - Mapped Speaker: **`marsh`** (Rime Mist v3).
-   - Acoustic Traits: Panicked pitch fluctuation, natural conversational pauses.
-
----
-
-## 📈 Experience Store & 100-Profile Calibration
-- 100 diverse demographic profiles (ages 19–68, 50% Female / 50% Male, across low, medium, and high volatility) were systematically audited through the calibration engine.
-- Zero halluncinated stage directions (`*sighs*`, `(whispering)`) or model meta-thoughts were permitted to reach Rime TTS.
-- Verified in [`audit_100_profiles_report.json`](./audit_100_profiles_report.json).
+### 3. Progressive Transcript Playout
+- **Problem observed during testing**: Dumping the entire 35-word LLM reply into the UI comms log immediately spoiled the line before the voice had even uttered the first two words. If the user interrupted, the chat log made no sense.
+- **Fix**: Words now stream to the UI in chunks of 3 at ~2.8 words/second, matching speech pacing. If you cut the subject off, what's on screen matches what you actually heard.
