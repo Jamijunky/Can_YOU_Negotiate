@@ -25,7 +25,7 @@ import json
 import time
 
 # Preload Silero VAD globally once at process startup so entrypoint starts instantaneously
-PRELOADED_VAD = silero.VAD.load(min_silence_duration=0.35)
+PRELOADED_VAD = silero.VAD.load(min_silence_duration=0.55)
 
 FEMALE_VOICES = {
     'aggressive': ['astra', 'lyra', 'breeze'],
@@ -499,7 +499,7 @@ async def entrypoint(ctx: JobContext) -> None:
     session = AgentSession(
         vad=PRELOADED_VAD,
         turn_handling={
-            "endpointing": {"min_delay": 0.55, "max_delay": 1.2},
+            "endpointing": {"min_delay": 0.65, "max_delay": 1.4},
             "interruption": {
                 "enabled": True,
                 "mode": "vad",
@@ -513,9 +513,8 @@ async def entrypoint(ctx: JobContext) -> None:
         stt=openai.STT(
             base_url="https://api.groq.com/openai/v1",
             api_key=os.environ.get("GROQ_API_KEY"),
-            model="whisper-large-v3-turbo",
+            model="whisper-large-v3",
             language="en",
-            prompt="Okay, alright, yeah, listen to me, we can work this out, let us talk, I understand, we will look into it."
         ),
         llm=openai.LLM(
             base_url="https://api.groq.com/openai/v1",

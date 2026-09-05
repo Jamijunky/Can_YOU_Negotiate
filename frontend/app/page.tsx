@@ -179,17 +179,26 @@ function LiveTranscriptFeed({ subjectName }: { subjectName: string }) {
             }
           }
 
-          // If user speech and last item was non-final user speech, update it in-place
+          // If user speech and last bubble was also user (subject hasn't replied yet), keep together
           const lastItem = prev.length > 0 ? prev[prev.length - 1] : null;
-          if (data.speaker === 'user' && lastItem && lastItem.speaker === 'user' && !lastItem.isFinal) {
+          if (data.speaker === 'user' && lastItem && lastItem.speaker === 'user') {
             const updated = [...prev];
-            updated[updated.length - 1] = {
-              ...lastItem,
-              id: data.id || lastItem.id,
-              text: data.text,
-              isFinal: data.isFinal ?? true,
-              timestamp: timeStr,
-            };
+            if (lastItem.id === data.id || !lastItem.isFinal) {
+              updated[updated.length - 1] = {
+                ...lastItem,
+                id: data.id || lastItem.id,
+                text: data.text,
+                isFinal: data.isFinal ?? true,
+                timestamp: timeStr,
+              };
+            } else {
+              updated[updated.length - 1] = {
+                ...lastItem,
+                text: `${lastItem.text} ${data.text}`.trim(),
+                isFinal: data.isFinal ?? true,
+                timestamp: timeStr,
+              };
+            }
             return updated;
           }
 
