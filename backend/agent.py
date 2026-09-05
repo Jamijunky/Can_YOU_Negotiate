@@ -411,7 +411,12 @@ class NegotiatorAgent(Agent):
             return f"Stress level updated to {stress_level}. You have escalated."
         return f"Stress level updated to {stress_level}."
 
-server = AgentServer()
+server = AgentServer(
+    num_idle_processes=0,
+    job_memory_warn_mb=400,
+    job_memory_limit_mb=480,
+    load_threshold=0.99,
+)
 
 @server.rtc_session()
 async def entrypoint(ctx: JobContext) -> None:
