@@ -39,8 +39,8 @@ LiveKit Cloud
    ▼  Real-time session
 Python Agent (LiveKit Agents framework)
    ├─ VAD: Silero (detects barge-in within 300ms)
-   ├─ STT: Whisper-large-v3 on Groq (<250ms)
-   ├─ LLM: GPT-OSS-120B / Llama 3 on Groq
+   ├─ STT: Whisper-large-v3-turbo on Groq (<150ms)
+   ├─ LLM: GPT-OSS-120B on Groq
    ├─ TTS: Rime Mist v3 via WebSocket
    └─ Memory: Prunes unspoken speech on interrupt + tracks stress (1-100)
 ```

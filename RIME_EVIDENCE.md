@@ -14,8 +14,8 @@ We used Rime's `mistv3` voice model connected to LiveKit's WebRTC agent pipeline
 | :--- | :--- | :--- |
 | **Barge-in detection (VAD)** | Silero VAD (0.3s speech threshold) | ~300ms |
 | **WebRTC audio roundtrip** | LiveKit Cloud | ~40 - 65ms |
-| **STT transcription** | Whisper Large v3 on Groq | ~200 - 240ms |
-| **LLM response generation** | GPT-OSS-120B / Llama 3 on Groq | ~500 - 620ms |
+| **STT transcription** | Whisper Large v3 Turbo on Groq | ~120 - 160ms |
+| **LLM response generation** | GPT-OSS-120B on Groq | ~500 - 620ms |
 | **TTS first audio chunk (TTFB)** | Rime Mist v3 (WebSocket) | ~220 - 280ms |
 | **Total time from user speech to subject audio stopping** | Silero VAD + LiveKit buffer flush | **~250 - 350ms** |
 
