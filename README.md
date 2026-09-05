@@ -11,9 +11,9 @@
 
 ## 🔗 Deliverable Links
 
+- **Live Production Website**: [https://frontend-blush-two-21.vercel.app](https://frontend-blush-two-21.vercel.app)
 - **GitHub Repository**: [https://github.com/Jamijunky/Can_YOU_Negotiate](https://github.com/Jamijunky/Can_YOU_Negotiate)
-- **Demo Video Walkthrough**: *[Link to Loom / Video Demo]* *(Placeholder: Add your video demonstration link here)*
-- **Live Deployment**: *[Link to Live Hosted App]* *(Placeholder: Add your hosted URL if deployed)*
+- **Deliverables Specification**: [DELIVERABLES.md](./DELIVERABLES.md)
 - **Technical Evidence & Proof**: [RIME_EVIDENCE.md](./RIME_EVIDENCE.md)
 
 ---
