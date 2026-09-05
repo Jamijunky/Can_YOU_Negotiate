@@ -11,7 +11,7 @@ import {
   useRoomContext,
 } from '@livekit/components-react';
 import '@livekit/components-styles';
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 
 function ParsedReport({ text }: { text: string }) {
@@ -311,7 +311,7 @@ function SimulationUI({
 
       <div className="mb-4 flex flex-col items-center z-10">
         <div className={`font-serif text-3xl md:text-4xl font-black uppercase tracking-tighter transition-colors ${tacticalHold ? 'text-[#d99a4e]' : state === 'speaking' ? 'text-[#d99a4e]' : 'text-[#1e1e1e]'}`}>
-          [ STATUS: {tacticalHold ? 'HOLD // THINK TIME' : state} ]
+          [ STATUS: {tacticalHold ? 'HOLD // THINK TIME' : state === 'connecting' ? 'DISPATCHING SUBJECT...' : state} ]
         </div>
         <div className="h-16 mt-4 flex items-center justify-center">
           {audioTrack && !tacticalHold && (
@@ -321,6 +321,11 @@ function SimulationUI({
               trackRef={audioTrack}
               className="h-16 w-64 text-[#1e1e1e]"
             />
+          )}
+          {state === 'connecting' && !tacticalHold && (
+            <div className="h-16 flex items-center justify-center font-mono text-xs tracking-widest text-[#1e1e1e]/70 animate-pulse">
+              [ SECURING LIVE AUDIO COMMS LINK... ]
+            </div>
           )}
           {tacticalHold && (
             <div className="h-16 flex items-center justify-center font-mono text-sm tracking-widest text-[#1e1e1e]/60">
@@ -365,17 +370,36 @@ function Watchdog({ onDisconnect, isHolding }: { onDisconnect: () => void; isHol
   const { state } = useVoiceAssistant();
   const participants = useRemoteParticipants();
   const room = useRoomContext();
+  const hasAgentJoinedRef = useRef(false);
 
   useEffect(() => {
-    // Only alert after room has been connected and the agent was previously present or 20s initial join grace period
-    if (room.state === 'connected' && participants.length === 0) {
+    if (participants.length > 0) {
+      hasAgentJoinedRef.current = true;
+    }
+  }, [participants.length]);
+
+  useEffect(() => {
+    // Case 1: Mid-call drop: Agent was joined, but now all remote participants left
+    if (room.state === 'connected' && hasAgentJoinedRef.current && participants.length === 0) {
       const t = setTimeout(() => {
-        if (room.state === 'connected' && participants.length === 0) {
+        if (room.state === 'connected' && hasAgentJoinedRef.current && participants.length === 0) {
           alert("Connection Lost: The subject disconnected unexpectedly.");
           try { room.disconnect(); } catch (e) {}
           onDisconnect();
         }
-      }, 15000);
+      }, 4000);
+      return () => clearTimeout(t);
+    }
+
+    // Case 2: Initial dispatch timeout: Agent has not joined after 60s
+    if (room.state === 'connected' && !hasAgentJoinedRef.current && participants.length === 0) {
+      const t = setTimeout(() => {
+        if (room.state === 'connected' && !hasAgentJoinedRef.current && participants.length === 0) {
+          alert("Dispatch Timeout: Unable to establish comm link with subject. Please try connecting again.");
+          try { room.disconnect(); } catch (e) {}
+          onDisconnect();
+        }
+      }, 60000);
       return () => clearTimeout(t);
     }
   }, [participants.length, room.state, room, onDisconnect]);
