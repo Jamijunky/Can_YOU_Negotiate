@@ -1,0 +1,21 @@
+services:
+  # Backend LiveKit Agent Worker
+  - type: worker
+    name: can-you-negotiate-agent
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python agent.py start
+    envVars:
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: RIME_API_KEY
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
