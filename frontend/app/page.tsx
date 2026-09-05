@@ -13,10 +13,10 @@ import {
 } from '@livekit/components-react';
 import { ConnectionState } from 'livekit-client';
 import '@livekit/components-styles';
-import { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef, memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 
-function ParsedReport({ text }: { text: string }) {
+const ParsedReport = memo(function ParsedReport({ text }: { text: string }) {
   const summaryMatch = text.match(/\*\*Grading Summary\*\*([\s\S]*?)(?=\*\*Advice\*\*|$)/);
   const adviceMatch = text.match(/\*\*Advice\*\*([\s\S]*)/);
 
@@ -59,9 +59,9 @@ function ParsedReport({ text }: { text: string }) {
       </div>
     </div>
   )
-}
+});
 
-function MissionStatus({ onReport }: { onReport: (r: string) => void }) {
+const MissionStatus = memo(function MissionStatus({ onReport }: { onReport: (r: string) => void }) {
   const [surrendered, setSurrendered] = useState(false);
   const [escalated, setEscalated] = useState(false);
   const [stress, setStress] = useState(90);
@@ -137,7 +137,7 @@ function MissionStatus({ onReport }: { onReport: (r: string) => void }) {
       )}
     </>
   );
-}
+});
 
 interface TranscriptItem {
   id: string;
@@ -148,7 +148,7 @@ interface TranscriptItem {
   isFinal?: boolean;
 }
 
-function LiveTranscriptFeed({ subjectName }: { subjectName: string }) {
+const LiveTranscriptFeed = memo(function LiveTranscriptFeed({ subjectName }: { subjectName: string }) {
   const [transcripts, setTranscripts] = useState<TranscriptItem[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -179,7 +179,7 @@ function LiveTranscriptFeed({ subjectName }: { subjectName: string }) {
             }
           }
 
-          // If user speech and last bubble was also user (subject hasn't replied yet), keep together
+          // If user speech and last bubble was also user (subject hasn't replied yet), merge cleanly
           const lastItem = prev.length > 0 ? prev[prev.length - 1] : null;
           if (data.speaker === 'user' && lastItem && lastItem.speaker === 'user') {
             const updated = [...prev];
@@ -259,9 +259,9 @@ function LiveTranscriptFeed({ subjectName }: { subjectName: string }) {
       </div>
     </div>
   );
-}
+});
 
-function SimulationUI({
+const SimulationUI = memo(function SimulationUI({
   subjectName,
   tacticalHold,
   setTacticalHold,
@@ -299,7 +299,6 @@ function SimulationUI({
   }, [room, onDisconnect]);
 
   const remoteParticipants = useRemoteParticipants();
-  const connectionState = useConnectionState();
   const hasAgent = remoteParticipants.some(p => (p.kind as any) === 4 || (p.kind as any) === 'agent' || p.identity.startsWith('agent-'));
   
   // Immersive dispatch sequence — cycles through realistic tactical messages while connecting
@@ -339,7 +338,7 @@ function SimulationUI({
   const dispatchProgress = isDispatching ? Math.min(95, (dispatchStep + 1) / DISPATCH_MESSAGES.length * 100) : 100;
 
   return (
-    <div className="flex flex-col items-center justify-center p-6 min-h-[350px] relative">
+    <div className="flex flex-col items-center justify-center p-6 min-h-[220px] relative">
       {/* Decorative crosshair */}
       <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-10">
         <div className="w-64 h-64 border border-[#1e1e1e] rounded-full" />
@@ -390,13 +389,8 @@ function SimulationUI({
         </div>
       </div>
 
-      {/* Real-time two-way transcript box */}
-      <div className="w-full flex justify-center z-10">
-        <LiveTranscriptFeed subjectName={subjectName} />
-      </div>
-
       {/* Control Actions bar */}
-      <div className="z-10 mt-6 flex flex-wrap items-center justify-center gap-4">
+      <div className="z-10 mt-4 flex flex-wrap items-center justify-center gap-4">
         <button
           onClick={toggleHold}
           className={`font-mono text-xs md:text-sm font-black px-4 py-2 border-2 border-[#1e1e1e] transition-all flex items-center gap-2 shadow-[3px_3px_0_0_#1e1e1e] ${
@@ -419,7 +413,7 @@ function SimulationUI({
       </div>
     </div>
   );
-}
+});
 
 function Watchdog({ onDisconnect, isHolding }: { onDisconnect: () => void; isHolding: boolean }) {
   const { state } = useVoiceAssistant();
@@ -789,6 +783,8 @@ export default function Home() {
                 echoCancellation: true,
                 noiseSuppression: true,
                 autoGainControl: true,
+                channelCount: 1,
+                sampleRate: 48000,
               }}
               video={false}
             >
@@ -799,6 +795,9 @@ export default function Home() {
                 setTacticalHold={setTacticalHold}
                 onDisconnect={disconnect}
               />
+              <div className="w-full flex justify-center z-10">
+                <LiveTranscriptFeed subjectName={currentName} />
+              </div>
               <MissionStatus onReport={setReport} />
               <RoomAudioRenderer />
             </LiveKitRoom>
