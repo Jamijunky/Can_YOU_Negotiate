@@ -145,10 +145,18 @@ interface TranscriptItem {
   senderName: string;
   text: string;
   timestamp: string;
+  isFinal?: boolean;
 }
 
 function LiveTranscriptFeed({ subjectName }: { subjectName: string }) {
   const [transcripts, setTranscripts] = useState<TranscriptItem[]>([]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [transcripts]);
 
   useDataChannel((msg) => {
     try {
@@ -156,72 +164,46 @@ function LiveTranscriptFeed({ subjectName }: { subjectName: string }) {
       if (data.type === 'transcript' && data.text) {
         const timeStr = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
         setTranscripts((prev) => {
-          // If agent speech: update by ID if streaming/interrupted, or add new bubble
-          if (data.speaker === 'agent') {
-            if (data.id) {
-              const idx = prev.findIndex(item => item.id === data.id);
-              if (idx !== -1) {
-                const updated = [...prev];
-                updated[idx] = {
-                  ...updated[idx],
-                  text: data.text,
-                };
-                return updated;
-              }
-            }
-            return [
-              ...prev,
-              {
-                id: data.id || `${Date.now()}-${Math.random()}`,
-                speaker: 'agent',
-                senderName: data.senderName || subjectName || 'SUBJECT',
-                text: data.text,
-                timestamp: timeStr,
-              }
-            ];
-          }
-
-          // If user speech: match by ID if updating an existing turn, or append cleanly
-          if (data.speaker === 'user') {
-            if (data.id) {
-              const idx = prev.findIndex(item => item.id === data.id);
-              if (idx !== -1) {
-                const updated = [...prev];
-                updated[idx] = {
-                  ...updated[idx],
-                  text: data.text,
-                  timestamp: timeStr,
-                };
-                return updated;
-              }
-            }
-
-            // If the last entry was also a user utterance without an ID or from the same turn, replace or cleanly append
-            const lastItem = prev.length > 0 ? prev[prev.length - 1] : null;
-            if (lastItem && lastItem.speaker === 'user' && !lastItem.text.endsWith('.')) {
+          // If update for an existing turn by ID (streaming user speech or agent text)
+          if (data.id) {
+            const idx = prev.findIndex(item => item.id === data.id);
+            if (idx !== -1) {
               const updated = [...prev];
-              updated[updated.length - 1] = {
-                ...lastItem,
-                text: `${lastItem.text} ${data.text}`.trim(),
+              updated[idx] = {
+                ...updated[idx],
+                text: data.text,
+                isFinal: data.isFinal ?? true,
                 timestamp: timeStr,
               };
               return updated;
             }
-
-            // New user turn
-            return [
-              ...prev,
-              {
-                id: data.id || `user-${Date.now()}-${Math.random()}`,
-                speaker: 'user',
-                senderName: 'YOU',
-                text: data.text,
-                timestamp: timeStr,
-              }
-            ];
           }
 
-          return prev;
+          // If user speech and last item was non-final user speech, update it in-place
+          const lastItem = prev.length > 0 ? prev[prev.length - 1] : null;
+          if (data.speaker === 'user' && lastItem && lastItem.speaker === 'user' && !lastItem.isFinal) {
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+              ...lastItem,
+              id: data.id || lastItem.id,
+              text: data.text,
+              isFinal: data.isFinal ?? true,
+              timestamp: timeStr,
+            };
+            return updated;
+          }
+
+          return [
+            ...prev,
+            {
+              id: data.id || `${data.speaker}-${Date.now()}-${Math.random()}`,
+              speaker: data.speaker,
+              senderName: data.speaker === 'user' ? 'YOU' : (data.senderName || subjectName || 'SUBJECT'),
+              text: data.text,
+              timestamp: timeStr,
+              isFinal: data.isFinal ?? true,
+            }
+          ];
         });
       }
     } catch (e) {}
@@ -237,24 +219,27 @@ function LiveTranscriptFeed({ subjectName }: { subjectName: string }) {
         <span className="font-mono text-[10px] text-[#f4f0e6]/50 uppercase">CONVERSATION STREAM</span>
       </div>
 
-      <div className="h-44 overflow-y-auto space-y-2 pr-1 flex flex-col-reverse select-text font-mono text-xs">
+      <div 
+        ref={scrollRef}
+        className="h-44 overflow-y-auto space-y-2 pr-1 flex flex-col select-text font-mono text-xs scroll-smooth"
+      >
         {transcripts.length === 0 ? (
           <div className="text-[#f4f0e6]/40 italic py-6 text-center">
             [Audio channel open. Speak into microphone to negotiate...]
           </div>
         ) : (
-          [...transcripts].reverse().map((t) => (
+          transcripts.map((t) => (
             <div
               key={t.id}
-              className={`p-2 border-l-2 leading-relaxed ${
+              className={`p-2 border-l-2 leading-relaxed transition-all duration-150 ${
                 t.speaker === 'user'
                   ? 'border-[#22c55e] bg-white/5 text-[#f4f0e6]'
                   : 'border-[#d99a4e] bg-[#d99a4e]/10 text-[#f4f0e6]'
               }`}
             >
               <div className="flex items-center justify-between text-[10px] mb-1 opacity-70">
-                <span className={t.speaker === 'user' ? 'text-[#22c55e] font-bold' : 'text-[#d99a4e] font-bold'}>
-                  [{t.senderName}]
+                <span className={t.speaker === 'user' ? 'text-[#22c55e] font-bold flex items-center gap-1.5' : 'text-[#d99a4e] font-bold'}>
+                  [{t.senderName}] {t.speaker === 'user' && t.isFinal === false && <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-ping" />}
                 </span>
                 <span>{t.timestamp}</span>
               </div>

@@ -246,20 +246,21 @@ class NegotiatorAgent(Agent):
 
         @self.session.on("user_input_transcribed")
         def _on_user_input(ev):
-            if ev.is_final and ev.transcript and ev.transcript.strip():
-                logger.info(f"User STT final: {ev.transcript}")
+            if ev.transcript and ev.transcript.strip():
                 try:
                     if self._room.isconnected and self._room.local_participant:
+                        item_id = getattr(ev, 'item_id', None) or f"user-{time.time()}"
                         asyncio.create_task(
                             self._room.local_participant.publish_data(
                                 json.dumps({
                                     "type": "transcript",
-                                    "id": getattr(ev, 'item_id', None),
+                                    "id": item_id,
                                     "speaker": "user",
                                     "senderName": "YOU",
-                                    "text": ev.transcript.strip()
+                                    "text": ev.transcript.strip(),
+                                    "isFinal": ev.is_final
                                 }).encode("utf-8"),
-                                reliable=True
+                                reliable=ev.is_final
                             )
                         )
                 except Exception as e:
@@ -498,7 +499,7 @@ async def entrypoint(ctx: JobContext) -> None:
     session = AgentSession(
         vad=PRELOADED_VAD,
         turn_handling={
-            "endpointing": {"min_delay": 0.25, "max_delay": 0.7},
+            "endpointing": {"min_delay": 0.55, "max_delay": 1.2},
             "interruption": {
                 "enabled": True,
                 "mode": "vad",
@@ -512,9 +513,9 @@ async def entrypoint(ctx: JobContext) -> None:
         stt=openai.STT(
             base_url="https://api.groq.com/openai/v1",
             api_key=os.environ.get("GROQ_API_KEY"),
-            model="whisper-large-v3",
+            model="whisper-large-v3-turbo",
             language="en",
-            prompt="Crisis negotiation dialogue between police negotiator and hostage taker or barricaded subject."
+            prompt="Okay, alright, yeah, listen to me, we can work this out, let us talk, I understand, we will look into it."
         ),
         llm=openai.LLM(
             base_url="https://api.groq.com/openai/v1",
