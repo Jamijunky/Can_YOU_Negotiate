@@ -28,8 +28,8 @@ import time
 # prefix_padding_duration ensures the first syllable/consonant is NEVER clipped when speaking
 PRELOADED_VAD = silero.VAD.load(
     min_speech_duration=0.1,
-    min_silence_duration=0.50,
-    prefix_padding_duration=0.45,
+    min_silence_duration=0.35,
+    prefix_padding_duration=0.35,
     activation_threshold=0.45
 )
 
@@ -190,88 +190,33 @@ class NegotiatorAgent(Agent):
         self._room = room
         self._subject_name = subject_name
         self._opening_line = opening_line
-        self._current_speech_id = None
-        self._current_speech_text = ""
-        self._speech_start_time = 0.0
-
-    async def on_user_turn_completed(
-        self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage
-    ) -> None:
-        """Called when user speaks/interrupts. Accurately cuts assistant speech only if verified human words were spoken."""
-        user_words = (new_message.text_content or "").strip()
-        if not user_words:
-            # Noise spike or ghost trigger without real words; do not truncate
-            return
-
-        if self._current_speech_id and self._current_speech_text:
-            elapsed = max(0.0, time.time() - self._speech_start_time)
-            # Estimate spoken words at 2.6 words per second (normal conversational pacing)
-            words = self._current_speech_text.split()
-            words_spoken_count = min(len(words), max(1, int(elapsed * 2.6)))
-            spoken_part = " ".join(words[:words_spoken_count])
-            
-            if words_spoken_count < len(words):
-                spoken_part += "..."
-                logger.info(f"Subject was INTERRUPTED by: '{user_words}'! Playout truncated from '{self._current_speech_text}' down to '{spoken_part}'")
-                
-                # Broadcast updated transcript to UI so the text box cuts off where speech stopped
-                if self._room.isconnected and self._room.local_participant:
-                    try:
-                        asyncio.create_task(
-                            self._room.local_participant.publish_data(
-                                json.dumps({
-                                    "type": "transcript",
-                                    "id": self._current_speech_id,
-                                    "speaker": "agent",
-                                    "senderName": self._subject_name.upper(),
-                                    "text": spoken_part
-                                }).encode("utf-8"),
-                                reliable=True
-                            )
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to publish truncated transcript: {e}")
-                
-                # Replace the last assistant message in turn context with only what was actually spoken
-                for item in reversed(turn_ctx.items):
-                    if item.role == "assistant":
-                        item.content = [f"{spoken_part} [Negotiator interrupted you here; you did not finish saying the rest of your statement]"]
-                        break
-
-            self._current_speech_id = None
-            self._current_speech_text = ""
 
     async def on_enter(self) -> None:
         import time
 
-        @self.session.on("speech_created")
-        def _on_speech_created(ev):
-            handle = ev.speech_handle
-            speech_id = f"agent-speech-{handle.id}"
-            self._current_speech_id = speech_id
-            self._speech_start_time = time.time()
-
         @self.session.on("user_input_transcribed")
         def _on_user_input(ev):
-            if ev.transcript and ev.transcript.strip():
-                try:
-                    if self._room.isconnected and self._room.local_participant:
-                        item_id = getattr(ev, 'item_id', None) or f"user-{time.time()}"
-                        asyncio.create_task(
-                            self._room.local_participant.publish_data(
-                                json.dumps({
-                                    "type": "transcript",
-                                    "id": item_id,
-                                    "speaker": "user",
-                                    "senderName": "YOU",
-                                    "text": ev.transcript.strip(),
-                                    "isFinal": ev.is_final
-                                }).encode("utf-8"),
-                                reliable=ev.is_final
-                            )
+            transcript = (ev.transcript or "").strip()
+            if not transcript:
+                return
+            try:
+                if self._room.isconnected and self._room.local_participant:
+                    item_id = str(getattr(ev, 'item_id', None) or f"user-{time.time()}")
+                    asyncio.create_task(
+                        self._room.local_participant.publish_data(
+                            json.dumps({
+                                "type": "transcript",
+                                "id": item_id,
+                                "speaker": "user",
+                                "senderName": "YOU",
+                                "text": transcript,
+                                "isFinal": bool(ev.is_final)
+                            }).encode("utf-8"),
+                            reliable=bool(ev.is_final)
                         )
-                except Exception as e:
-                    logger.warning(f"Failed to publish user transcript: {e}")
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to publish user transcript: {e}")
 
         @self.session.on("conversation_item_added")
         def _on_item_added(ev):
@@ -281,21 +226,17 @@ class NegotiatorAgent(Agent):
                     cleaned = clean_spoken_text(msg.text_content)
                     if cleaned:
                         logger.info(f"Subject speech scheduled: {cleaned}")
-                        speech_id = self._current_speech_id or f"agent-{time.time()}"
-                        self._current_speech_id = speech_id
-                        self._current_speech_text = cleaned
-                        self._speech_start_time = time.time()
-                        
-                        # Immediately publish the clean spoken text without artificial sleep delays
+                        item_id = str(getattr(msg, 'id', None) or f"agent-{time.time()}")
                         if self._room.isconnected and self._room.local_participant:
                             asyncio.create_task(
                                 self._room.local_participant.publish_data(
                                     json.dumps({
                                         "type": "transcript",
-                                        "id": speech_id,
+                                        "id": item_id,
                                         "speaker": "agent",
                                         "senderName": self._subject_name.upper(),
-                                        "text": cleaned
+                                        "text": cleaned,
+                                        "isFinal": True
                                     }).encode("utf-8"),
                                     reliable=True
                                 )
@@ -515,11 +456,11 @@ async def entrypoint(ctx: JobContext) -> None:
     session = AgentSession(
         vad=PRELOADED_VAD,
         turn_handling={
-            "endpointing": {"min_delay": 0.50, "max_delay": 1.20},
+            "endpointing": {"min_delay": 0.15, "max_delay": 0.55},
             "interruption": {
                 "enabled": True,
                 "mode": "vad",
-                "min_duration": 0.45,
+                "min_duration": 0.35,
                 "resume_false_interruption": True,
                 "false_interruption_timeout": 1.5,
             },
@@ -529,16 +470,17 @@ async def entrypoint(ctx: JobContext) -> None:
         stt=openai.STT(
             base_url="https://api.groq.com/openai/v1",
             api_key=os.environ.get("GROQ_API_KEY"),
-            model="whisper-large-v3",
+            model="whisper-large-v3-turbo",
+            temperature=0.0,
             language="en",
-            prompt="Crisis negotiation dialogue: Alright, we will look into it. I understand. Let us talk. Calm down. Tell me what you need.",
+            prompt="Crisis negotiation dialogue between police negotiator and hostage taker. Natural conversational English speech.",
         ),
         llm=openai.LLM(
             base_url="https://api.groq.com/openai/v1",
             api_key=os.environ.get("GROQ_API_KEY"),
             model="qwen/qwen3.8-27b",
-            temperature=0.85,
-            max_completion_tokens=150,
+            temperature=0.75,
+            max_completion_tokens=100,
             timeout=10.0,
             max_retries=2
         ),

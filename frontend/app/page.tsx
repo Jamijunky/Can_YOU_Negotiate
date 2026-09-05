@@ -66,7 +66,7 @@ const MissionStatus = memo(function MissionStatus({ onReport }: { onReport: (r: 
   const [escalated, setEscalated] = useState(false);
   const [stress, setStress] = useState(90);
 
-  useDataChannel((msg) => {
+  const handleStatusData = useCallback((msg: any) => {
     try {
       const data = JSON.parse(new TextDecoder().decode(msg.payload));
       if (data.type === 'surrender') {
@@ -80,7 +80,9 @@ const MissionStatus = memo(function MissionStatus({ onReport }: { onReport: (r: 
         onReport(data.content);
       }
     } catch (e) {}
-  });
+  }, [onReport]);
+
+  useDataChannel(handleStatusData);
 
   return (
     <>
@@ -158,7 +160,7 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({ subjectName }: { s
     }
   }, [transcripts]);
 
-  useDataChannel((msg) => {
+  const handleData = useCallback((msg: any) => {
     try {
       const data = JSON.parse(new TextDecoder().decode(msg.payload));
       if (data.type === 'transcript' && data.text) {
@@ -179,26 +181,17 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({ subjectName }: { s
             }
           }
 
-          // If user speech and last bubble was also user (subject hasn't replied yet), merge cleanly
+          // If last bubble was user speech and still unfinalized, update in place
           const lastItem = prev.length > 0 ? prev[prev.length - 1] : null;
-          if (data.speaker === 'user' && lastItem && lastItem.speaker === 'user') {
+          if (data.speaker === 'user' && lastItem && lastItem.speaker === 'user' && !lastItem.isFinal) {
             const updated = [...prev];
-            if (lastItem.id === data.id || !lastItem.isFinal) {
-              updated[updated.length - 1] = {
-                ...lastItem,
-                id: data.id || lastItem.id,
-                text: data.text,
-                isFinal: data.isFinal ?? true,
-                timestamp: timeStr,
-              };
-            } else {
-              updated[updated.length - 1] = {
-                ...lastItem,
-                text: `${lastItem.text} ${data.text}`.trim(),
-                isFinal: data.isFinal ?? true,
-                timestamp: timeStr,
-              };
-            }
+            updated[updated.length - 1] = {
+              ...lastItem,
+              id: data.id || lastItem.id,
+              text: data.text,
+              isFinal: data.isFinal ?? true,
+              timestamp: timeStr,
+            };
             return updated;
           }
 
@@ -216,7 +209,9 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({ subjectName }: { s
         });
       }
     } catch (e) {}
-  });
+  }, [subjectName]);
+
+  useDataChannel(handleData);
 
   return (
     <div className="w-full max-w-2xl mt-6 bg-[#1e1e1e] border-2 border-[#d99a4e] p-4 text-left shadow-[6px_6px_0_0_#1e1e1e]">
@@ -230,7 +225,7 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({ subjectName }: { s
 
       <div 
         ref={scrollRef}
-        className="h-44 overflow-y-auto space-y-2 pr-1 flex flex-col select-text font-mono text-xs scroll-smooth"
+        className="h-44 overflow-y-auto space-y-2 pr-1 flex flex-col select-text font-mono text-xs"
       >
         {transcripts.length === 0 ? (
           <div className="text-[#f4f0e6]/40 italic py-6 text-center">
