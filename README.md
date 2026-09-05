@@ -11,7 +11,7 @@
 
 ## 🔗 Deliverable Links
 
-- **GitHub Repository**: [https://github.com/Jamijunky/Can_you_Negotiate_-](https://github.com/Jamijunky/Can_you_Negotiate_-)
+- **GitHub Repository**: [https://github.com/Jamijunky/Can_YOU_Negotiate](https://github.com/Jamijunky/Can_YOU_Negotiate)
 - **Demo Video Walkthrough**: *[Link to Loom / Video Demo]* *(Placeholder: Add your video demonstration link here)*
 - **Live Deployment**: *[Link to Live Hosted App]* *(Placeholder: Add your hosted URL if deployed)*
 - **Technical Evidence & Proof**: [RIME_EVIDENCE.md](./RIME_EVIDENCE.md)
@@ -112,8 +112,8 @@ In hostage and crisis negotiation, **text cannot substitute for voice**. Critica
 
 ### Step 1: Clone Repository
 ```bash
-git clone https://github.com/Jamijunky/Can_you_Negotiate_-.git
-cd Can_you_Negotiate_-
+git clone https://github.com/Jamijunky/Can_YOU_Negotiate.git
+cd Can_YOU_Negotiate
 ```
 
 ---
