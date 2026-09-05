@@ -8,7 +8,7 @@ This document summarizes all official submission links, project deliverables, an
 
 | Deliverable | URL / Reference | Description |
 | :--- | :--- | :--- |
-| **Live Production Website** | [https://frontend-blush-two-21.vercel.app](https://frontend-blush-two-21.vercel.app) | Live Next.js WebRTC frontend deployed on Vercel |
+| **Live Production Website** | [https://can-you-negotiate.vercel.app](https://can-you-negotiate.vercel.app) | Live Next.js WebRTC frontend deployed on Vercel |
 | **GitHub Repository** | [https://github.com/Jamijunky/Can_YOU_Negotiate](https://github.com/Jamijunky/Can_YOU_Negotiate) | Public GitHub repository containing complete source code |
 | **Voice Proof & Benchmarks** | [`RIME_EVIDENCE.md`](./RIME_EVIDENCE.md) | Latency benchmarks, full-duplex interruption tests, and acoustic mapping |
 | **Cognition Audit Evidence** | [`audit_100_profiles_report.json`](./audit_100_profiles_report.json) | Automated evaluation across 100 demographic & psychological profiles |

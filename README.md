@@ -11,7 +11,7 @@
 
 ## 🔗 Deliverable Links
 
-- **Live Production Website**: [https://frontend-blush-two-21.vercel.app](https://frontend-blush-two-21.vercel.app)
+- **Live Production Website**: [https://can-you-negotiate.vercel.app](https://can-you-negotiate.vercel.app)
 - **GitHub Repository**: [https://github.com/Jamijunky/Can_YOU_Negotiate](https://github.com/Jamijunky/Can_YOU_Negotiate)
 - **Deliverables Specification**: [DELIVERABLES.md](./DELIVERABLES.md)
 - **Technical Evidence & Proof**: [RIME_EVIDENCE.md](./RIME_EVIDENCE.md)
