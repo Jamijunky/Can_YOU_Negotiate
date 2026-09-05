@@ -1,0 +1,8 @@
+{
+  "version_id": "v_f7395b01",
+  "behavior_weight_modifiers": {
+    "stall": -10.0
+  },
+  "expression_hesitation_modifier": 0.0,
+  "appraisal_trust_discount": 0.0
+}

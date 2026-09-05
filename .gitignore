@@ -1,0 +1,28 @@
+# Environment & Secrets
+.env
+.env.local
+*.env
+*.env.*
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Node
+node_modules/
+.next/
+out/
+build/
+dist/
+*.log
+
+# OS & Temp
+.DS_Store
+Thumbs.db
+*.zip
+experience.db
+audit_experience.db
