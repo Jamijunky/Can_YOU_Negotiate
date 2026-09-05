@@ -187,7 +187,12 @@ class NegotiatorAgent(Agent):
     async def on_user_turn_completed(
         self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage
     ) -> None:
-        """Called immediately when user speaks/interrupts. Accurately cuts assistant speech to what was actually heard."""
+        """Called when user speaks/interrupts. Accurately cuts assistant speech only if verified human words were spoken."""
+        user_words = (new_message.text_content or "").strip()
+        if not user_words:
+            # Noise spike or ghost trigger without real words; do not truncate
+            return
+
         if self._current_speech_id and self._current_speech_text:
             elapsed = max(0.0, time.time() - self._speech_start_time)
             # Estimate spoken words at 2.6 words per second (normal conversational pacing)
@@ -197,7 +202,7 @@ class NegotiatorAgent(Agent):
             
             if words_spoken_count < len(words):
                 spoken_part += "..."
-                logger.info(f"Subject was INTERRUPTED! Playout truncated from '{self._current_speech_text}' down to '{spoken_part}'")
+                logger.info(f"Subject was INTERRUPTED by: '{user_words}'! Playout truncated from '{self._current_speech_text}' down to '{spoken_part}'")
                 
                 # Broadcast updated transcript to UI so the text box cuts off where speech stopped
                 if self._room.isconnected and self._room.local_participant:
@@ -484,14 +489,15 @@ async def entrypoint(ctx: JobContext) -> None:
         logger.info(f"Fallback scenario mapped: Name={name}, Gender={gender} -> Speaker={speaker}")
 
     session = AgentSession(
-        vad=silero.VAD.load(min_silence_duration=0.3),
+        vad=silero.VAD.load(min_silence_duration=0.35),
         turn_handling={
-            "endpointing": {"min_delay": 0.2, "max_delay": 0.6},
+            "endpointing": {"min_delay": 0.25, "max_delay": 0.7},
             "interruption": {
                 "enabled": True,
                 "mode": "vad",
-                "min_duration": 0.3,
-                "resume_false_interruption": False,
+                "min_duration": 0.5,
+                "resume_false_interruption": True,
+                "false_interruption_timeout": 1.5,
             },
             "preemptive_generation": {"enabled": False},
         },

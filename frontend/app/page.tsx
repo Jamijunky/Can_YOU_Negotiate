@@ -711,7 +711,11 @@ export default function Home() {
               token={token}
               connect={true}
               onDisconnected={disconnect}
-              audio={true}
+              audio={{
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+              }}
               video={false}
             >
               <Watchdog onDisconnect={disconnect} isHolding={tacticalHold} />
