@@ -200,7 +200,7 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({ subjectName }: { s
             {
               id: data.id || `${data.speaker}-${Date.now()}-${Math.random()}`,
               speaker: data.speaker,
-              senderName: data.speaker === 'user' ? 'YOU' : (data.senderName || subjectName || 'SUBJECT'),
+              senderName: data.speaker === 'user' ? 'YOU' : (subjectName || data.senderName || 'SUBJECT'),
               text: data.text,
               timestamp: timeStr,
               isFinal: data.isFinal ?? true,

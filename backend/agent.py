@@ -373,6 +373,13 @@ async def entrypoint(ctx: JobContext) -> None:
     try:
         if ctx.room.metadata:
             meta = json.loads(ctx.room.metadata)
+            logger.info(f"Loaded metadata from ctx.room.metadata: {meta.get('name')}")
+        elif hasattr(ctx, 'job') and ctx.job and ctx.job.room and ctx.job.room.metadata:
+            meta = json.loads(ctx.job.room.metadata)
+            logger.info(f"Loaded metadata from ctx.job.room.metadata: {meta.get('name')}")
+        elif hasattr(ctx, 'job') and ctx.job and ctx.job.participant and ctx.job.participant.metadata:
+            meta = json.loads(ctx.job.participant.metadata)
+            logger.info(f"Loaded metadata from ctx.job.participant.metadata: {meta.get('name')}")
         else:
             from livekit.api import ListRoomsRequest
             room_res = await ctx.api.room.list_rooms(ListRoomsRequest(names=[ctx.room.name]))
@@ -381,6 +388,28 @@ async def entrypoint(ctx: JobContext) -> None:
                 logger.info(f"Loaded room metadata via API: {meta.get('name')}, {meta.get('gender')}")
     except Exception as e:
         logger.warning(f"Failed to load room metadata: {e}")
+
+    # If metadata was still pending propagation, check participants or retry briefly
+    if not meta:
+        for _ in range(5):
+            for p in ctx.room.remote_participants.values():
+                if p.metadata:
+                    try:
+                        meta = json.loads(p.metadata)
+                        logger.info(f"Loaded metadata from participant {p.identity}: {meta.get('name')}")
+                        break
+                    except Exception:
+                        pass
+            if meta:
+                break
+            if ctx.room.metadata:
+                try:
+                    meta = json.loads(ctx.room.metadata)
+                    logger.info(f"Loaded metadata from ctx.room.metadata on retry: {meta.get('name')}")
+                    break
+                except Exception:
+                    pass
+            await asyncio.sleep(0.2)
         
     meta_lower = {str(k).lower(): v for k, v in meta.items()}
     difficulty = meta_lower.get("difficulty", "medium")
@@ -408,14 +437,28 @@ async def entrypoint(ctx: JobContext) -> None:
         "6. HANDLING INTERRUPTIONS: If the negotiator cuts you off mid-sentence, react like a real interrupted person: 'Hey, let me finish!', 'Don't interrupt me!', or react to what they said.\n"
     )
 
-    dynamic_scenario = meta_lower.get("dynamicscenario", False)
+    # Persona-aware defaults based on room name if metadata is completely absent
+    persona_defaults = {
+        "robber": ("Maria", "female", "frantic", "Cornered in a bank vault service corridor. Alarm is blaring."),
+        "scammed": ("Arthur", "male", "desperate", "Trapped in the brokerage lobby on the 14th floor after losing life savings."),
+        "founder": ("Sam", "male", "aggressive", "Locked in the server room of his failed startup threatening to wipe database."),
+        "custom": ("Alex", "male", "desperate", "Cornered subject demanding immediate resolution.")
+    }
+    matched_persona = "custom"
+    for p_key in persona_defaults:
+        if p_key in room_name:
+            matched_persona = p_key
+            break
+    fb_name, fb_gender, fb_archetype, fb_intel = persona_defaults[matched_persona]
+
+    dynamic_scenario = meta_lower.get("dynamicscenario", bool(meta))
     logger.info(f"Metadata received: {meta}")
 
-    if dynamic_scenario:
-        name = meta_lower.get("name", "Alex")
-        gender = str(meta_lower.get("gender", "male")).lower()
-        archetype = str(meta_lower.get("archetype", "desperate")).lower()
-        intel_instructions = meta_lower.get("intel", meta_lower.get("instructions", "You are cornered and panicked."))
+    if dynamic_scenario or meta:
+        name = meta_lower.get("name") or meta.get("name") or fb_name
+        gender = str(meta_lower.get("gender") or meta.get("gender") or fb_gender).lower()
+        archetype = str(meta_lower.get("archetype") or meta.get("archetype") or fb_archetype).lower()
+        intel_instructions = meta_lower.get("intel") or meta_lower.get("instructions") or meta.get("intel") or meta.get("instructions") or fb_intel
         
         instructions = base_rules + f"\nYOU ARE {name.upper()}.\n{intel_instructions}\nDrive the conversation naturally based entirely on what they say."
         on_enter_prompt = "Say something spontaneous and stressed to start the call based on your exact situation. 1-2 sentences."
@@ -423,22 +466,13 @@ async def entrypoint(ctx: JobContext) -> None:
         speaker = select_speaker(name=name, gender=gender, archetype=archetype)
         logger.info(f"Dynamic scenario mapped: Name={name}, Gender={gender}, Archetype={archetype} -> Speaker={speaker}")
     else:
-        # Fallback custom or legacy
-        name = meta.get("name", "Alex")
-        gender = str(meta.get("gender", "male")).lower()
-        archetype = str(meta.get("archetype", "aggressive")).lower()
-        if "custom" in room_name:
-            instructions = (
-                base_rules +
-                f"\nYour name is {name}. You are {meta.get('age', '30')} years old. Your profession is: {meta.get('profession', 'person')}.\n"
-                f"Your current situation and motive: {meta.get('motive', 'You are cornered and panicked')}.\n"
-            )
-            on_enter_prompt = "Say something spontaneous and stressed to start the call. 1-2 sentences."
-        else:
-            instructions = base_rules + "\nYou are a stressed individual. Rant constantly."
-            on_enter_prompt = "Start ranting in 2-3 short sentences."
+        name = fb_name
+        gender = fb_gender
+        archetype = fb_archetype
+        instructions = base_rules + f"\nYOU ARE {name.upper()}.\n{fb_intel}\nDrive the conversation naturally based entirely on what they say."
+        on_enter_prompt = "Say something spontaneous and stressed to start the call. 1-2 sentences."
         speaker = select_speaker(name=name, gender=gender, archetype=archetype)
-        logger.info(f"Fallback scenario mapped: Name={name}, Gender={gender} -> Speaker={speaker}")
+        logger.info(f"Fallback persona mapped: Name={name}, Gender={gender} -> Speaker={speaker}")
 
     opening_line = meta_lower.get("openingline") or meta_lower.get("opening_line") or meta.get("openingLine") or meta.get("opening_line") or ""
     if not opening_line:

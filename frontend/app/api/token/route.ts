@@ -22,19 +22,21 @@ export async function GET(req: NextRequest) {
   }).catch(() => {});
 
   if (metadata) {
-    const roomService = new RoomServiceClient(
-      process.env.NEXT_PUBLIC_LIVEKIT_URL!.replace('wss://', 'https://'),
-      apiKey,
-      apiSecret
-    );
-    // Fire room creation in background without blocking token delivery
-    roomService.createRoom({
-      name: room,
-      metadata: metadata,
-      emptyTimeout: 10 * 60,
-    }).catch((e) => {
-      console.warn('Non-blocking room creation notice:', e.message);
-    });
+    const livekitHost = process.env.NEXT_PUBLIC_LIVEKIT_URL!.replace('wss://', 'https://');
+    const roomService = new RoomServiceClient(livekitHost, apiKey, apiSecret);
+    try {
+      await roomService.createRoom({
+        name: room,
+        metadata: metadata,
+        emptyTimeout: 10 * 60,
+      });
+    } catch (e: any) {
+      try {
+        await roomService.updateRoomMetadata(room, metadata);
+      } catch (e2: any) {
+        console.warn('Failed to update room metadata:', e2.message);
+      }
+    }
   }
 
   const at = new AccessToken(apiKey, apiSecret, {
