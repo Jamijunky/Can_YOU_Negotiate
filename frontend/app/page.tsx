@@ -259,10 +259,12 @@ function SimulationUI({
   subjectName,
   tacticalHold,
   setTacticalHold,
+  onDisconnect,
 }: {
   subjectName: string;
   tacticalHold: boolean;
   setTacticalHold: (val: boolean | ((prev: boolean) => boolean)) => void;
+  onDisconnect: () => void;
 }) {
   const { state, audioTrack } = useVoiceAssistant();
   const room = useRoomContext();
@@ -278,6 +280,17 @@ function SimulationUI({
       console.warn("Failed to toggle mic track on tactical hold:", e);
     }
   }, [tacticalHold, room, setTacticalHold]);
+
+  const handleDisconnect = useCallback(() => {
+    try {
+      if (room) {
+        room.disconnect();
+      }
+    } catch (e) {
+      console.warn("Error disconnecting room:", e);
+    }
+    onDisconnect();
+  }, [room, onDisconnect]);
 
   return (
     <div className="flex flex-col items-center justify-center p-6 min-h-[350px] relative">
@@ -336,8 +349,15 @@ function SimulationUI({
           {tacticalHold ? 'RESUME COMMS [UNPAUSE]' : 'TACTICAL HOLD // THINK TIME'}
         </button>
 
+        <button
+          onClick={handleDisconnect}
+          className="bg-[#dc2626] hover:bg-[#b91c1c] text-white font-mono text-xs md:text-sm font-black px-4 py-2 border-2 border-[#1e1e1e] shadow-[3px_3px_0_0_#1e1e1e] transition-all cursor-pointer"
+        >
+          DISCONNECT // END CALL
+        </button>
+
         <div className="bg-[#1e1e1e] p-1 border-2 border-[#d99a4e]" data-lk-theme="default">
-          <VoiceAssistantControlBar />
+          <VoiceAssistantControlBar controls={{ leave: false }} />
         </div>
       </div>
     </div>
@@ -665,6 +685,7 @@ export default function Home() {
                 subjectName={currentName}
                 tacticalHold={tacticalHold}
                 setTacticalHold={setTacticalHold}
+                onDisconnect={disconnect}
               />
               <MissionStatus onReport={setReport} />
               <RoomAudioRenderer />
