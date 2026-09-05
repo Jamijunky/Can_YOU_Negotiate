@@ -397,13 +397,15 @@ class NegotiatorAgent(Agent):
 server = AgentServer(
     job_executor_type=JobExecutorType.THREAD,
     load_threshold=2.0,
+    host="0.0.0.0",
+    port=int(os.environ.get("PORT", 8081)),
 )
 
 @server.rtc_session()
 async def entrypoint(ctx: JobContext) -> None:
+    t0 = time.time()
     logger.info("Initializing Negotiate-It Agent...")
     
-    import json
     room_name = ctx.room.name.lower()
     
     voice_preamble = (
@@ -491,6 +493,8 @@ async def entrypoint(ctx: JobContext) -> None:
         speaker = select_speaker(name=name, gender=gender, archetype=archetype)
         logger.info(f"Fallback scenario mapped: Name={name}, Gender={gender} -> Speaker={speaker}")
 
+    logger.info(f"[TIMING] metadata parsed + instructions built in {time.time()-t0:.2f}s")
+
     session = AgentSession(
         vad=PRELOADED_VAD,
         turn_handling={
@@ -527,12 +531,13 @@ async def entrypoint(ctx: JobContext) -> None:
             use_websocket=True,
         ),
     )
+    logger.info(f"[TIMING] session created in {time.time()-t0:.2f}s")
 
     await session.start(
         agent=NegotiatorAgent(instructions=instructions, on_enter_prompt=on_enter_prompt, room=ctx.room, subject_name=name),
         room=ctx.room,
     )
-    logger.info(f"Session started with speaker: {speaker}")
+    logger.info(f"[TIMING] session.start() completed in {time.time()-t0:.2f}s — agent is now live")
 
 if __name__ == "__main__":
     cli.run_app(server)

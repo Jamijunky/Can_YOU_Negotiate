@@ -16,6 +16,11 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // Proactively ping Render agent to wake it up if idle
+  fetch('https://can-you-negotiate-agent.onrender.com', {
+    signal: AbortSignal.timeout(2000),
+  }).catch(() => {});
+
   if (metadata) {
     try {
       const roomService = new RoomServiceClient(

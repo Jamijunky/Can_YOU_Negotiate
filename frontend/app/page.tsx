@@ -9,7 +9,9 @@ import {
   useDataChannel,
   useRemoteParticipants,
   useRoomContext,
+  useConnectionState,
 } from '@livekit/components-react';
+import { ConnectionState } from 'livekit-client';
 import '@livekit/components-styles';
 import { useCallback, useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -303,8 +305,44 @@ function SimulationUI({
   }, [room, onDisconnect]);
 
   const remoteParticipants = useRemoteParticipants();
+  const connectionState = useConnectionState();
   const hasAgent = remoteParticipants.some(p => (p.kind as any) === 4 || (p.kind as any) === 'agent' || p.identity.startsWith('agent-'));
-  const effectiveState = (state === 'connecting' && (audioTrack || hasAgent)) ? 'speaking' : state;
+  
+  // Immersive dispatch sequence — cycles through realistic tactical messages while connecting
+  const DISPATCH_MESSAGES = [
+    'ESTABLISHING SECURE CHANNEL...',
+    'PATCHING INTO LIVE AUDIO FEED...',
+    'TRIANGULATING SUBJECT LOCATION...',
+    'ROUTING ENCRYPTED COMMS LINK...',
+    'OPENING NEGOTIATION LINE...',
+    'SUBJECT LOCATED // CONNECTING...',
+  ];
+  const [dispatchStep, setDispatchStep] = useState(0);
+  const dispatchTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Determine effective state: skip 'connecting' if agent has joined but state attr not yet set
+  const effectiveState = (state === 'connecting' && (audioTrack || hasAgent)) ? 'listening' : state;
+  const isDispatching = effectiveState === 'connecting';
+
+  useEffect(() => {
+    if (isDispatching) {
+      setDispatchStep(0);
+      dispatchTimerRef.current = setInterval(() => {
+        setDispatchStep(prev => (prev + 1) % DISPATCH_MESSAGES.length);
+      }, 1200);
+    } else {
+      if (dispatchTimerRef.current) {
+        clearInterval(dispatchTimerRef.current);
+        dispatchTimerRef.current = null;
+      }
+    }
+    return () => {
+      if (dispatchTimerRef.current) clearInterval(dispatchTimerRef.current);
+    };
+  }, [isDispatching]);
+
+  // Progress bar percentage (fills over ~7s to feel complete)
+  const dispatchProgress = isDispatching ? Math.min(95, (dispatchStep + 1) / DISPATCH_MESSAGES.length * 100) : 100;
 
   return (
     <div className="flex flex-col items-center justify-center p-6 min-h-[350px] relative">
@@ -324,8 +362,8 @@ function SimulationUI({
       )}
 
       <div className="mb-4 flex flex-col items-center z-10">
-        <div className={`font-serif text-3xl md:text-4xl font-black uppercase tracking-tighter transition-colors ${tacticalHold ? 'text-[#d99a4e]' : effectiveState === 'speaking' ? 'text-[#d99a4e]' : 'text-[#1e1e1e]'}`}>
-          [ STATUS: {tacticalHold ? 'HOLD // THINK TIME' : effectiveState === 'connecting' ? 'DISPATCHING SUBJECT...' : effectiveState} ]
+        <div className={`font-serif text-3xl md:text-4xl font-black uppercase tracking-tighter transition-colors ${tacticalHold ? 'text-[#d99a4e]' : effectiveState === 'speaking' || effectiveState === 'listening' ? 'text-[#d99a4e]' : 'text-[#1e1e1e]'}`}>
+          [ STATUS: {tacticalHold ? 'HOLD // THINK TIME' : isDispatching ? DISPATCH_MESSAGES[dispatchStep] : effectiveState} ]
         </div>
         <div className="h-16 mt-4 flex items-center justify-center">
           {audioTrack && !tacticalHold && (
@@ -336,9 +374,18 @@ function SimulationUI({
               className="h-16 w-64 text-[#1e1e1e]"
             />
           )}
-          {effectiveState === 'connecting' && !tacticalHold && (
-            <div className="h-16 flex items-center justify-center font-mono text-xs tracking-widest text-[#1e1e1e]/70 animate-pulse">
-              [ SECURING LIVE AUDIO COMMS LINK... ]
+          {isDispatching && !tacticalHold && (
+            <div className="h-16 flex flex-col items-center justify-center gap-3 w-64">
+              {/* Animated progress bar */}
+              <div className="w-full h-2 bg-[#1e1e1e]/10 border border-[#1e1e1e]/30">
+                <div
+                  className="h-full bg-[#d99a4e] transition-all duration-700 ease-out"
+                  style={{ width: `${dispatchProgress}%` }}
+                />
+              </div>
+              <span className="font-mono text-[10px] tracking-widest text-[#1e1e1e]/50 animate-pulse uppercase">
+                Securing comms link
+              </span>
             </div>
           )}
           {tacticalHold && (
