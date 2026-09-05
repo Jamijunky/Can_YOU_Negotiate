@@ -568,8 +568,9 @@ export default function Home() {
           </div>
         </div>
 
-        <p className="text-xl md:text-2xl font-serif text-[#1e1e1e]/80 italic mt-8 max-w-lg bg-[#f4f0e6]/80 p-2">
-          De-escalation via verbal interrupt. Calm the subject.
+        <p className="text-xl md:text-2xl font-serif text-[#1e1e1e]/80 italic mt-8 max-w-lg bg-[#f4f0e6]/80 p-2 whitespace-pre-line text-center">
+          De-escalation via verbal interrupt.{"\n"}
+          Calm the subject.
         </p>
 
         {/* Mission brief */}
