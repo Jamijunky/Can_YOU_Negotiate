@@ -38,12 +38,31 @@ from cognition.speech_generator import SpeechGenerator
 
 # Preload Silero VAD globally once at process startup with optimized speech threshold & prefix padding
 # prefix_padding_duration ensures the first syllable/consonant is NEVER clipped when speaking
+logger.info("[PREWARM] Loading Silero VAD model...")
 PRELOADED_VAD = silero.VAD.load(
     min_speech_duration=0.08,
     min_silence_duration=0.28,
     prefix_padding_duration=0.35,
     activation_threshold=0.45
 )
+logger.info("[PREWARM] Silero VAD model loaded successfully")
+
+# Prewarm cognitive engines to prevent cold start delays
+logger.info("[PREWARM] Initializing cognitive engines...")
+try:
+    _dummy_appraisal = AppraisalEngine()
+    _dummy_policy = BehavioralPolicyEngine()
+    _dummy_expression = ExpressionEngine()
+    _dummy_speech = SpeechGenerator()
+    _dummy_pipeline = CognitivePipeline(
+        appraisal_engine=_dummy_appraisal,
+        policy_engine=_dummy_policy,
+        expression_engine=_dummy_expression,
+        speech_generator=_dummy_speech
+    )
+    logger.info("[PREWARM] Cognitive engines initialized successfully")
+except Exception as e:
+    logger.warning(f"[PREWARM] Cognitive engine prewarming failed (non-critical): {e}")
 
 FEMALE_VOICES = {
     'aggressive': ['astra', 'lyra', 'breeze'],
@@ -692,12 +711,20 @@ server = AgentServer(
     port=int(os.environ.get("PORT", 8081)),
 )
 
+# Health check endpoint for monitoring agent availability
+@server.http.get("/health")
+async def health_check(req):
+    return {"status": "healthy", "service": "can-you-negotiate-agent", "timestamp": time.time()}
+
 @server.rtc_session()
 async def entrypoint(ctx: JobContext) -> None:
     t0 = time.time()
-    logger.info("Initializing Negotiate-It Agent...")
+    logger.info("[STARTUP] Initializing Negotiate-It Agent...")
+    logger.info(f"[STARTUP] Room: {ctx.room.name}, Participant: {ctx.participant.identity}")
     
     room_name = ctx.room.name.lower()
+    t1 = time.time()
+    logger.info(f"[TIMING] Room name parsed in {(t1-t0):.3f}s")
     
     voice_preamble = (
         "You are a real, terrified human being trapped in a life-or-death crisis. "
@@ -707,24 +734,28 @@ async def entrypoint(ctx: JobContext) -> None:
     )
 
     meta = {}
+    t2 = time.time()
     try:
         if ctx.room.metadata:
             meta = json.loads(ctx.room.metadata)
-            logger.info(f"Loaded metadata from ctx.room.metadata: {meta.get('name')}")
+            logger.info(f"[METADATA] Loaded from ctx.room.metadata: {meta.get('name')}")
         elif hasattr(ctx, 'job') and ctx.job and ctx.job.room and ctx.job.room.metadata:
             meta = json.loads(ctx.job.room.metadata)
-            logger.info(f"Loaded metadata from ctx.job.room.metadata: {meta.get('name')}")
+            logger.info(f"[METADATA] Loaded from ctx.job.room.metadata: {meta.get('name')}")
         elif hasattr(ctx, 'job') and ctx.job and ctx.job.participant and ctx.job.participant.metadata:
             meta = json.loads(ctx.job.participant.metadata)
-            logger.info(f"Loaded metadata from ctx.job.participant.metadata: {meta.get('name')}")
+            logger.info(f"[METADATA] Loaded from ctx.job.participant.metadata: {meta.get('name')}")
         else:
             from livekit.api import ListRoomsRequest
+            logger.info("[METADATA] Fallback: fetching via API...")
             room_res = await ctx.api.room.list_rooms(ListRoomsRequest(names=[ctx.room.name]))
             if room_res.rooms and room_res.rooms[0].metadata:
                 meta = json.loads(room_res.rooms[0].metadata)
-                logger.info(f"Loaded room metadata via API: {meta.get('name')}, {meta.get('gender')}")
+                logger.info(f"[METADATA] Loaded via API: {meta.get('name')}, {meta.get('gender')}")
     except Exception as e:
-        logger.warning(f"Failed to load room metadata: {e}")
+        logger.warning(f"[METADATA] Failed to load room metadata: {e}")
+    t3 = time.time()
+    logger.info(f"[TIMING] Metadata loading took {(t3-t2):.3f}s")
 
     # If metadata was still pending propagation, check participants or retry briefly
     if not meta:
@@ -842,6 +873,8 @@ async def entrypoint(ctx: JobContext) -> None:
 
     logger.info(f"[TIMING] metadata parsed + instructions built in {time.time()-t0:.2f}s | opening_line='{opening_line}'")
 
+    t4 = time.time()
+    logger.info("[SESSION] Creating AgentSession with VAD, STT, LLM, TTS...")
     session = AgentSession(
         vad=PRELOADED_VAD,
         turn_handling={
@@ -881,7 +914,8 @@ async def entrypoint(ctx: JobContext) -> None:
             speed_alpha=1.05,
         ),
     )
-    logger.info(f"[TIMING] session created in {time.time()-t0:.2f}s")
+    t5 = time.time()
+    logger.info(f"[TIMING] AgentSession created in {(t5-t4):.3f}s")
 
     await session.start(
         agent=NegotiatorAgent(instructions=instructions, on_enter_prompt=on_enter_prompt, room=ctx.room, subject_name=name, opening_line=opening_line, archetype=archetype),

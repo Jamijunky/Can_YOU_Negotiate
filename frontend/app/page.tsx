@@ -635,6 +635,22 @@ export default function Home() {
     try {
       setIsConnecting(true);
       
+      // Check backend health before connecting
+      try {
+        const healthRes = await fetch('https://can-you-negotiate-agent.onrender.com/health', {
+          method: 'GET',
+          signal: AbortSignal.timeout(5000)
+        });
+        if (!healthRes.ok) {
+          throw new Error('Backend agent unavailable');
+        }
+        const healthData = await healthRes.json();
+        console.log('[HEALTH] Backend agent is healthy:', healthData);
+      } catch (healthError) {
+        console.warn('[HEALTH] Backend health check failed:', healthError);
+        alert('Warning: Backend agent may be starting up. Connection may take longer than usual.');
+      }
+      
       // Instant scenario data without blocking on Groq LLM
       const finalScenarioData = scenarioData || DEFAULT_SCENARIOS[persona] || DEFAULT_SCENARIOS.robber;
 
