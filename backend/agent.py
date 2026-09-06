@@ -541,7 +541,6 @@ async def entrypoint(ctx: JobContext) -> None:
         "4. REACT SPECIFICALLY TO THEIR WORDS: Listen to their exact offer or claim. If they say 'calm down', get furious. If they promise safety, demand proof. If they mention family or a doctor, show desperate hope.\n"
         "5. STRICTLY ONLY SPOKEN WORDS: Never output reasoning, internal thoughts, meta-explanations, or stage directions (no *sighs*, no (whispers)). ONLY output the exact words coming out of your mouth.\n"
         "6. INTERRUPTIONS: If you are cut off, snap back: 'Hey, let me finish!', or react immediately to their words.\n"
-        "7. STRICT ANTI-HALLUCINATION GUARDRAILS: DO NOT invent names, people, events, weapons, hostages, or background facts that are not explicitly mentioned in your intel. If asked about something outside your background, aggressively deflect based on your current emotional state (e.g., 'What?! I don't know what you're talking about!', 'Why does that even matter right now?!'). NEVER break character and NEVER make up facts.\n"
     )
 
     # Persona-aware defaults based on room name if metadata is completely absent
