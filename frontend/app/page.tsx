@@ -668,9 +668,8 @@ export default function Home() {
     setTacticalHold(false);
   }, []);
 
-  const currentName = scenarioData?.name ? scenarioData.name.toUpperCase() : (persona === 'robber' ? 'MARIA' : persona === 'scammed' ? 'ARTHUR' : persona === 'founder' ? 'SAM' : customName.toUpperCase());
-  const currentIntel = scenarioData?.intel ? scenarioData.intel : "Generating fresh intel...";
-
+  const currentName = isGeneratingIntel ? '...' : (scenarioData?.name ? scenarioData.name.toUpperCase() : (persona === 'robber' ? 'MARIA' : persona === 'scammed' ? 'ARTHUR' : persona === 'founder' ? 'SAM' : customName.toUpperCase()));
+  const currentIntel = isGeneratingIntel ? "Generating fresh intel..." : (scenarioData?.intel ? scenarioData.intel : "No intel available.");
 
   return (
     <main className={`min-h-screen flex flex-col items-center justify-start overflow-x-hidden relative py-12 px-4 transition-colors duration-700 ${token ? 'bg-[#0f0f0f]' : 'bg-[#f4f0e6]'}`}>
