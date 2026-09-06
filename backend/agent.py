@@ -24,7 +24,7 @@ import re
 import json
 import time
 
-from cognition.schemas import PsychologicalState, Personality, RelationshipState, HumanModel
+from cognition.schemas import PsychologicalState, Personality
 from cognition.state_engine import StateUpdateSignal, apply_state_transition
 
 # Preload Silero VAD globally once at process startup with optimized speech threshold & prefix padding
@@ -205,15 +205,12 @@ class NegotiatorAgent(Agent):
         elif archetype == "paranoid":
             volatility, impulsivity, dominance = 0.6, 0.4, 0.6
             
-        self._model = HumanModel(
-            personality=Personality(
-                impulsivity=impulsivity,
-                dominance=dominance,
-                emotional_volatility=volatility,
-            ),
-            psychology=PsychologicalState(stress=85, fear=70, anger=60, desperation=80, sense_of_control=20, guilt=10),
-            relationship=RelationshipState(trust=10, perceived_threat=80)
+        self._personality = Personality(
+            impulsivity=impulsivity,
+            dominance=dominance,
+            emotional_volatility=volatility,
         )
+        self._psychology = PsychologicalState(stress=85, fear=70, anger=60, desperation=80, sense_of_control=20, guilt=10)
         
         self._stress = 85
         self._surrendered = False
@@ -315,8 +312,8 @@ class NegotiatorAgent(Agent):
                         respect_delta -= 10
                         
                 signal = StateUpdateSignal(threat_delta=threat_delta, hope_delta=hope_delta, respect_delta=respect_delta)
-                new_psych, meta = apply_state_transition(self._model.psychology, self._model.personality, signal)
-                self._model.psychology = new_psych
+                new_psych, meta = apply_state_transition(self._psychology, self._personality, signal)
+                self._psychology = new_psych
                 
                 # Compute cognitive pacing based on state
                 pacing = "normal"

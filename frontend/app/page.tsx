@@ -418,9 +418,14 @@ const SimulationUI = memo(function SimulationUI({
       )}
 
       <div className="mb-4 flex flex-col items-center z-10">
-        <div className={`font-serif text-3xl md:text-4xl font-black uppercase tracking-tighter transition-colors ${tacticalHold ? 'text-[#d99a4e]' : effectiveState === 'speaking' || effectiveState === 'listening' ? 'text-[#d99a4e]' : 'text-[#1e1e1e]'}`}>
+        <div className={`font-serif text-3xl md:text-4xl font-black uppercase tracking-tighter transition-colors text-center ${tacticalHold ? 'text-[#d99a4e]' : effectiveState === 'speaking' || effectiveState === 'listening' ? 'text-[#d99a4e]' : 'text-[#1e1e1e]'}`}>
           [ STATUS: {tacticalHold ? 'HOLD // THINK TIME' : isDispatching ? DISPATCH_MESSAGES[dispatchStep] : effectiveState} ]
         </div>
+        {isDispatching && (
+          <div className="mt-2 font-mono text-[10px] uppercase tracking-widest text-[#1e1e1e]/60 animate-pulse">
+            (Waking up secure servers... This may take up to 2 minutes on cold start)
+          </div>
+        )}
         <div className="h-16 mt-4 flex items-center justify-center">
           {audioTrack && !tacticalHold && (
             <BarVisualizer
@@ -504,15 +509,15 @@ function Watchdog({ onDisconnect, isHolding }: { onDisconnect: () => void; isHol
       return () => clearTimeout(t);
     }
 
-    // Case 2: Initial dispatch timeout: Agent has not joined after 60s
+    // Case 2: Initial dispatch timeout: Agent has not joined after 120s
     if (room.state === 'connected' && !hasAgentJoinedRef.current && participants.length === 0) {
       const t = setTimeout(() => {
         if (room.state === 'connected' && !hasAgentJoinedRef.current && participants.length === 0) {
-          alert("Dispatch Timeout: Unable to establish comm link with subject. Please try connecting again.");
+          alert("Dispatch Timeout: The secure servers failed to wake up in time. Please try connecting again.");
           try { room.disconnect(); } catch (e) {}
           onDisconnect();
         }
-      }, 60000);
+      }, 120000);
       return () => clearTimeout(t);
     }
   }, [participants.length, room.state, room, onDisconnect]);
