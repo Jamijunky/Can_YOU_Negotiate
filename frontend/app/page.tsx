@@ -732,6 +732,8 @@ export default function Home() {
 
   useEffect(() => {
     let active = true;
+    // Set generating flag immediately so UI shows "REFRESHING INTEL..." right away
+    setIsGeneratingIntel(true);
     // Set baseline default immediately so there is never a 0ms freeze
     if (DEFAULT_SCENARIOS[persona]) {
       setScenarioData(DEFAULT_SCENARIOS[persona]);
@@ -740,7 +742,6 @@ export default function Home() {
       // Proactively wake up backend
       fetch('https://can-you-negotiate-agent.onrender.com', { mode: 'no-cors' }).catch(() => {});
       try {
-        setIsGeneratingIntel(true);
         const scenarioRes = await fetch('/api/scenario', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -764,6 +765,7 @@ export default function Home() {
     return () => {
       active = false;
       clearTimeout(timer);
+      setIsGeneratingIntel(false);
     };
   }, [persona, difficulty, customMotive, refreshTrigger]);
 
