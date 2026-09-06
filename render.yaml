@@ -5,7 +5,7 @@ services:
     runtime: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: python agent.py start
+    startCommand: python agent.py
     envVars:
       - key: LIVEKIT_URL
         sync: false
