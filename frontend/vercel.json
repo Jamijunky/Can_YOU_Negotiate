@@ -13,5 +13,11 @@
         "service": "web"
       }
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/keep-alive",
+      "schedule": "*/10 * * * *"
+    }
   ]
 }
