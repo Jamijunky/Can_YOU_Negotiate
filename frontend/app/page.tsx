@@ -101,7 +101,7 @@ const MissionStatus = memo(function MissionStatus({ onReport }: { onReport: (r: 
         />
       </div>
       <div className="absolute top-2 left-6 z-30 font-mono text-xs font-bold px-2 py-1 bg-[#1e1e1e] text-[#f4f0e6]">
-        STRESS_MONITOR
+        STRESS: {stress}
       </div>
 
       {/* Surrender screen */}
@@ -770,22 +770,6 @@ export default function Home() {
   const connect = useCallback(async () => {
     try {
       setIsConnecting(true);
-      
-      // Check backend health before connecting
-      try {
-        const healthRes = await fetch('https://can-you-negotiate-agent.onrender.com/health', {
-          method: 'GET',
-          signal: AbortSignal.timeout(5000)
-        });
-        if (!healthRes.ok) {
-          throw new Error('Backend agent unavailable');
-        }
-        const healthData = await healthRes.json();
-        console.log('[HEALTH] Backend agent is healthy:', healthData);
-      } catch (healthError) {
-        console.warn('[HEALTH] Backend health check failed:', healthError);
-        alert('Warning: Backend agent may be starting up. Connection may take longer than usual.');
-      }
       
       // Instant scenario data without blocking on Groq LLM
       const finalScenarioData = scenarioData || DEFAULT_SCENARIOS[persona] || DEFAULT_SCENARIOS.robber;
