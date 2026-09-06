@@ -42,7 +42,7 @@ def test_different_personality_different_path(pipeline, base_human):
     human_a = base_human.model_copy(deep=True)
     human_a.personality.trust_tendency = 0.9 
     
-    _, trace_a, _, _, _, _ = pipeline.process_turn(
+    _, trace_a = pipeline.process_turn(
         input_transcript="I promise I won't hurt you.",
         human=human_a, state=state_a, rel=rel_a, situation=SituationModel(),
         beliefs=[], goals=GoalState(), strategy_history=StrategyHistory(),
@@ -54,7 +54,7 @@ def test_different_personality_different_path(pipeline, base_human):
     human_b = base_human.model_copy(deep=True)
     human_b.personality.trust_tendency = 0.1 
     
-    _, trace_b, _, _, _, _ = pipeline.process_turn(
+    _, trace_b = pipeline.process_turn(
         input_transcript="I promise I won't hurt you.",
         human=human_b, state=state_b, rel=rel_b, situation=SituationModel(),
         beliefs=[], goals=GoalState(), strategy_history=StrategyHistory(),
@@ -68,7 +68,7 @@ def test_pipeline_latencies_tracked(pipeline, base_human):
     state = PsychologicalState()
     rel = RelationshipState()
     
-    _, trace, _, _, _, _ = pipeline.process_turn(
+    _, trace = pipeline.process_turn(
         input_transcript="Hello.",
         human=base_human, state=state, rel=rel, situation=SituationModel(),
         beliefs=[], goals=GoalState(), strategy_history=StrategyHistory(),

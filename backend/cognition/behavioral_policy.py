@@ -35,7 +35,7 @@ class BehavioralPolicyEngine:
         return feasible
 
     def _get_dynamic_goal_weights(self, human: HumanModel, state: PsychologicalState) -> dict:
-        """Goals become more urgent based on state and personality."""
+        """Goals become more urgent based on state."""
         weights = {"survival": 1.0, "dignity": 1.0, "control": 1.0, "information": 1.0}
         
         # High fear spikes survival urgency
@@ -48,16 +48,6 @@ class BehavioralPolicyEngine:
         # Desperation makes survival paramount but sacrifices dignity
         weights["survival"] += (state.desperation / 30.0)
         weights["dignity"] -= (state.desperation / 50.0)
-        
-        # Personality-specific goal weighting
-        # High need_for_control increases control goal weight
-        weights["control"] += (human.personality.need_for_control - 0.5) * 2.0
-        
-        # High guilt_tendency increases moral goal weight (dignity/integrity)
-        weights["dignity"] += human.personality.guilt_tendency * 0.5
-        
-        # High trust_tendency makes cooperation/information goals more viable
-        weights["information"] += human.personality.trust_tendency * 0.3
         
         return weights
 

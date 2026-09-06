@@ -24,45 +24,14 @@ import re
 import json
 import time
 
-from cognition.schemas import (
-    PsychologicalState, Personality, HumanModel, Identity, Goals, CopingMechanisms, 
-    CommunicationStyle, RelationshipState, SituationModel, GoalState, StrategyHistory,
-    WorldState, Belief, Trigger
-)
-from cognition.state_engine import StateUpdateSignal, apply_state_transition
-from cognition.pipeline import CognitivePipeline
-from cognition.appraisal_engine import AppraisalEngine
-from cognition.behavioral_policy import BehavioralPolicyEngine
-from cognition.expression_engine import ExpressionEngine, ExpressionHistory
-from cognition.speech_generator import SpeechGenerator
-
 # Preload Silero VAD globally once at process startup with optimized speech threshold & prefix padding
 # prefix_padding_duration ensures the first syllable/consonant is NEVER clipped when speaking
-logger.info("[PREWARM] Loading Silero VAD model...")
 PRELOADED_VAD = silero.VAD.load(
     min_speech_duration=0.08,
     min_silence_duration=0.28,
     prefix_padding_duration=0.35,
     activation_threshold=0.45
 )
-logger.info("[PREWARM] Silero VAD model loaded successfully")
-
-# Prewarm cognitive engines to prevent cold start delays
-logger.info("[PREWARM] Initializing cognitive engines...")
-try:
-    _dummy_appraisal = AppraisalEngine()
-    _dummy_policy = BehavioralPolicyEngine()
-    _dummy_expression = ExpressionEngine()
-    _dummy_speech = SpeechGenerator()
-    _dummy_pipeline = CognitivePipeline(
-        appraisal_engine=_dummy_appraisal,
-        policy_engine=_dummy_policy,
-        expression_engine=_dummy_expression,
-        speech_generator=_dummy_speech
-    )
-    logger.info("[PREWARM] Cognitive engines initialized successfully")
-except Exception as e:
-    logger.warning(f"[PREWARM] Cognitive engine prewarming failed (non-critical): {e}")
 
 FEMALE_VOICES = {
     'aggressive': ['astra', 'lyra', 'breeze'],
@@ -96,73 +65,6 @@ def select_speaker(name: str, gender: str, archetype: str = '') -> str:
     else:
         bank = MALE_VOICES.get(arch, MALE_VOICES['default'])
         return bank[h % len(bank)]
-
-def compute_voice_parameters(state: PsychologicalState, personality: Personality) -> dict:
-    """
-    Compute dynamic voice parameters based on cognitive state and personality.
-    Returns parameters that can be used to adjust Rime TTS in real-time.
-    """
-    # Base speed calculation
-    speed_alpha = 1.0
-    
-    # Fear increases speech rate (faster, more urgent)
-    if state.fear > 60:
-        speed_alpha += (state.fear - 60) / 100.0 * 0.3  # Up to +0.3 speed increase
-    
-    # Anger increases rate and intensity
-    if state.anger > 50:
-        speed_alpha += (state.anger - 50) / 100.0 * 0.2  # Up to +0.2 speed increase
-    
-    # High stress can cause erratic pacing
-    if state.stress > 70:
-        speed_alpha += (state.stress - 70) / 100.0 * 0.15  # Up to +0.15 speed increase
-    
-    # Desperation can make speech faster and more urgent
-    if state.desperation > 60:
-        speed_alpha += (state.desperation - 60) / 100.0 * 0.2
-    
-    # Personality adjustments
-    # High impulsivity = faster baseline speech
-    if personality.impulsivity > 0.6:
-        speed_alpha += (personality.impulsivity - 0.6) * 0.2
-    
-    # Low dominance (submissive) can slow speech when uncertain
-    if personality.dominance < 0.4 and state.fear > 50:
-        speed_alpha -= 0.1
-    
-    # Clamp speed to reasonable bounds
-    speed_alpha = max(0.8, min(1.4, speed_alpha))
-    
-    # Emotional intensity for voice quality
-    # This could map to stability, pitch variation, etc.
-    emotional_intensity = (state.fear + state.anger + state.stress) / 3.0 / 100.0
-    
-    # Energy level for projection
-    energy_level = (state.anger + state.desperation) / 2.0 / 100.0
-    if personality.dominance > 0.7:
-        energy_level += 0.2  # Dominant personalities project more
-    
-    # Personality-based voice characteristics
-    # High emotional volatility = more voice parameter lability
-    voice_stability = 1.0 - (personality.emotional_volatility * 0.3)
-    
-    # Risk tolerance affects baseline calmness vs tension
-    baseline_tension = 1.0 - personality.risk_tolerance
-    
-    # Pride affects resistance to showing vulnerability in voice
-    vocal_vulnerability = 1.0 - personality.pride
-    
-    return {
-        "speed_alpha": speed_alpha,
-        "emotional_intensity": emotional_intensity,
-        "energy_level": energy_level,
-        "voice_stability": voice_stability,
-        "baseline_tension": baseline_tension,
-        "vocal_vulnerability": vocal_vulnerability,
-        "fear_level": state.fear / 100.0,
-        "anger_level": state.anger / 100.0,
-        "stress_level": state.stress / 100.0
-    }
 
 
 def clean_spoken_text(text: str) -> str:
@@ -280,7 +182,7 @@ async def filter_inner_thoughts(text_stream):
 
 
 class NegotiatorAgent(Agent):
-    def __init__(self, instructions: str, on_enter_prompt: str, room, subject_name: str = "Alex", opening_line: str = "", archetype: str = "", human_model: HumanModel = None) -> None:
+    def __init__(self, instructions: str, on_enter_prompt: str, room, subject_name: str = "Alex", opening_line: str = "") -> None:
         super().__init__(
             instructions=instructions,
         )
@@ -288,88 +190,10 @@ class NegotiatorAgent(Agent):
         self._room = room
         self._subject_name = subject_name
         self._opening_line = opening_line
-        self._archetype = archetype
-        
-        # Initialize cognitive engines
-        self._appraisal_engine = AppraisalEngine()
-        self._policy_engine = BehavioralPolicyEngine()
-        self._expression_engine = ExpressionEngine()
-        self._speech_generator = SpeechGenerator()
-        self._cognitive_pipeline = CognitivePipeline(
-            appraisal_engine=self._appraisal_engine,
-            policy_engine=self._policy_engine,
-            expression_engine=self._expression_engine,
-            speech_generator=self._speech_generator
-        )
-        
-        # Use provided human model or create default from archetype
-        if human_model:
-            self._human = human_model
-            self._personality = human_model.personality
-        else:
-            volatility, impulsivity, dominance = 0.5, 0.5, 0.5
-            if archetype == "frantic":
-                volatility, impulsivity, dominance = 0.9, 0.8, 0.3
-            elif archetype == "aggressive":
-                volatility, impulsivity, dominance = 0.8, 0.7, 0.8
-            elif archetype == "desperate":
-                volatility, impulsivity, dominance = 0.7, 0.6, 0.4
-            elif archetype == "paranoid":
-                volatility, impulsivity, dominance = 0.6, 0.4, 0.6
-                
-            self._personality = Personality(
-                impulsivity=impulsivity,
-                dominance=dominance,
-                emotional_volatility=volatility,
-            )
-            
-            # Create basic human model
-            self._human = HumanModel(
-                identity=Identity(name=subject_name, age=30, occupation="unknown"),
-                personality=self._personality,
-                goals=Goals(primary="survive", secondary="escape"),
-                coping=CopingMechanisms(
-                    fear_response="compliance",
-                    anger_response="explosive",
-                    stress_response="talking_more"
-                ),
-                communication_style=CommunicationStyle(
-                    description="Stressed and urgent",
-                    directness=0.6,
-                    verbosity=0.5,
-                    formality=0.3,
-                    vocabulary_complexity=0.5,
-                    sentence_complexity=0.4,
-                    figurative_language=0.3,
-                    question_frequency=0.2
-                ),
-                triggers=[
-                    Trigger(id="default_threat", topic="threat", sensitivity=0.7)
-                ]
-            )
-        
-        # Initialize cognitive state components
-        self._psychology = PsychologicalState(stress=85, fear=70, anger=60, desperation=80, sense_of_control=20, guilt=10)
-        self._relationship = RelationshipState()
-        self._situation = SituationModel()
-        self._goals = GoalState()
-        self._strategy_history = StrategyHistory()
-        self._expression_history = ExpressionHistory()
-        self._beliefs = []
-        self._world = WorldState()
-        self._recent_context = []
-        
-        # Legacy compatibility
         self._stress = 85
         self._surrendered = False
         self._escalated = False
         self._last_user_text = ""
-        self._cut_off = False
-        self._last_directive_msg = None
-        self._speaker = None
-        self._current_voice_params = {}
-        self._last_subject_response = ""
-        self._conversation_turn = 0
 
     async def _evaluate_dialogue_state(self, user_text: str, agent_text: str):
         """Asynchronously updates stress, surrender, and escalation in the background without blocking voice streaming."""
@@ -422,20 +246,6 @@ class NegotiatorAgent(Agent):
 
     async def on_enter(self) -> None:
         import time
-        self._last_speech_time = time.time()
-        self._nudge_count = 0
-
-        async def _dead_air_loop():
-            while True:
-                await asyncio.sleep(1.0)
-                if time.time() - self._last_speech_time > 3.5 and self._nudge_count < 1:
-                    logger.info("Dead air detected, nudging user...")
-                    self.session.chat_ctx.messages.append(llm.ChatMessage(role="system", content="[SYSTEM] The user has been silent for 3.5 seconds. Give a very short, anxious 2-4 word nudge (e.g. 'You there?', 'Hello?', 'Don't go silent on me.')."))
-                    self.session.generate_reply()
-                    self._nudge_count += 1
-                    self._last_speech_time = time.time()
-
-        asyncio.create_task(_dead_air_loop())
 
         @self.session.on("user_input_transcribed")
         def _on_user_input(ev):
@@ -444,149 +254,6 @@ class NegotiatorAgent(Agent):
                 return
             if ev.is_final:
                 self._last_user_text = transcript
-                self._last_speech_time = time.time()
-                self._nudge_count = 0
-                
-                # Use cognitive pipeline for sophisticated processing
-                try:
-                    # Update recent context with better formatting
-                    # Include both user speech and agent responses for better context
-                    self._recent_context.append(f"Negotiator: {transcript}")
-                    
-                    # Maintain context window of last 15 exchanges for better reference resolution
-                    if len(self._recent_context) > 15:
-                        self._recent_context.pop(0)
-                    
-                    # Add subject's previous responses to context if available
-                    if hasattr(self, '_last_subject_response') and self._last_subject_response:
-                        self._recent_context.append(f"Subject: {self._last_subject_response}")
-                        if len(self._recent_context) > 15:
-                            self._recent_context.pop(0)
-                    
-                    # Process through cognitive pipeline (synchronous call)
-                    # Note: The pipeline now returns updated state objects
-                    speech_result, trace, new_state, new_rel, new_situation, new_beliefs = self._cognitive_pipeline.process_turn(
-                        input_transcript=transcript,
-                        human=self._human,
-                        state=self._psychology,
-                        rel=self._relationship,
-                        situation=self._situation,
-                        beliefs=self._beliefs,
-                        goals=self._goals,
-                        strategy_history=self._strategy_history,
-                        expression_history=self._expression_history,
-                        recent_context=self._recent_context,
-                        world=self._world
-                    )
-                    
-                    # Update our state references with the returned objects
-                    self._psychology = new_state
-                    self._relationship = new_rel
-                    self._situation = new_situation
-                    self._beliefs = new_beliefs
-                    
-                    # Compute dynamic voice parameters based on new state
-                    voice_params = compute_voice_parameters(self._psychology, self._human.personality)
-                    logger.info(f"Dynamic voice parameters: speed={voice_params['speed_alpha']:.2f}, intensity={voice_params['emotional_intensity']:.2f}")
-                    
-                    # Note: LiveKit Rime TTS doesn't support real-time parameter updates during a session
-                    # But we can log these for potential future use or for driving other audio effects
-                    self._current_voice_params = voice_params
-                    
-                    # Update legacy stress for compatibility
-                    self._stress = self._psychology.stress
-                    
-                    # Log cognitive processing
-                    logger.info(f"Cognitive pipeline processed: fear={self._psychology.fear:.1f}, anger={self._psychology.anger:.1f}, stress={self._psychology.stress:.1f}")
-                    logger.info(f"Generated speech: {speech_result.spoken_text}")
-                    
-                    # Use cognitive state for enhanced directive
-                    pacing = "normal"
-                    derived_speed = 1.05
-                    if self._psychology.fear > 80 or self._psychology.anger > 80:
-                        pacing = "erratic and fast"
-                        derived_speed = 1.15
-                    elif self._psychology.fear > 60:
-                        pacing = "anxious and hesitant"
-                        derived_speed = 1.0
-                    elif self._psychology.anger > 60:
-                        pacing = "hostile and tense"
-                        derived_speed = 1.10
-                    
-                    cut_off_str = " (You were just CUT OFF by the negotiator. SNAP BACK or react angrily to being interrupted.)" if self._cut_off else ""
-                    self._cut_off = False
-                    
-                    # Enhanced cognitive directive with expression metadata
-                    expr = self._expression_history.recent_expressions[-1] if self._expression_history.recent_expressions else None
-                    expression_str = ""
-                    if expr:
-                        expression_str = f" Speech Control: {expr.speech_control:.2f}, Hesitation: {expr.hesitation_tendency:.2f}, Energy: {expr.verbal_energy:.2f}, Directness: {expr.directness:.2f}"
-                        
-                        # Add specific behavioral guidance based on expression
-                        if expr.hesitation_tendency > 0.6:
-                            expression_str += " (Use natural hesitation, fillers like 'um', 'uh')"
-                        if expr.verbal_energy > 0.7:
-                            expression_str += " (Speak in shorter, more fragmented sentences)"
-                        if expr.speech_control < 0.4:
-                            expression_str += " (Show emotional leakage, less filtered responses)"
-                        if expr.emotional_leakage > 0.5:
-                            expression_str += " (Let emotions show through in voice and word choice)"
-                        if expr.self_correction_tendency > 0.6:
-                            expression_str += " (Show self-correction and rephrasing)"
-                    
-                    # Add personality-based guidance
-                    personality_guidance = ""
-                    if self._human.personality.dominance > 0.7:
-                        personality_guidance = " (Be more assertive, use imperatives)"
-                    elif self._human.personality.dominance < 0.3:
-                        personality_guidance = " (Be more submissive, tentative language)"
-                    
-                    if self._human.personality.impulsivity > 0.7:
-                        personality_guidance += " (React quickly, less filtering)"
-                    
-                    # Add communication style guidance
-                    comm_guidance = ""
-                    if hasattr(self._human, 'communication_style'):
-                        cs = self._human.communication_style
-                        if cs.vocabulary_complexity > 0.7:
-                            comm_guidance = " (Use sophisticated vocabulary)"
-                        elif cs.vocabulary_complexity < 0.3:
-                            comm_guidance = " (Use simple, direct language)"
-                        if cs.figurative_language > 0.6:
-                            comm_guidance += " (Use metaphors and figurative expressions)"
-                        if cs.question_frequency > 0.5:
-                            comm_guidance += " (Frame responses as questions often)"
-                    
-                    directive_text = f"[COGNITIVE DIRECTIVE] State: Fear={int(self._psychology.fear)} Anger={int(self._psychology.anger)} Stress={int(self._psychology.stress)} Desperation={int(self._psychology.desperation)}. Pacing: {pacing}.{expression_str}{personality_guidance}{comm_guidance}{cut_off_str}"
-                    logger.info(f"Generated enhanced cognitive directive: {directive_text}")
-                    
-                    # Inject directive into session history
-                    msg = llm.ChatMessage(role="system", content=directive_text)
-                    self.session.chat_ctx.messages.append(msg)
-                    
-                except Exception as e:
-                    logger.error(f"Cognitive pipeline error, falling back to simple processing: {e}")
-                    # Fallback to original heuristic processing
-                    u = transcript.lower()
-                    threat_delta = hope_delta = respect_delta = 0
-                    
-                    calm_signals = ('calm', 'listen', 'promise', 'help', 'safe', 'understand', 'doctor', 'family', 'water', 'food', 'nobody gets hurt', 'talk to me', 'here with you', 'trust me', 'no one will hurt')
-                    tense_signals = ('surrender now', 'give up', 'breach', 'sniper', 'jail', 'prison', 'guilty', 'drop the weapon', 'final warning', 'now or else', 'idiot', 'crazy', 'shut up', 'back off')
-                    
-                    for word in calm_signals:
-                        if word in u:
-                            hope_delta += 10
-                            threat_delta -= 10
-                    for word in tense_signals:
-                        if word in u:
-                            threat_delta += 20
-                            respect_delta -= 10
-                            
-                    signal = StateUpdateSignal(threat_delta=threat_delta, hope_delta=hope_delta, respect_delta=respect_delta)
-                    new_psych, meta = apply_state_transition(self._psychology, self._personality, signal)
-                    self._psychology = new_psych
-                    self._stress = self._psychology.stress
-                
             try:
                 if self._room.isconnected and self._room.local_participant:
                     item_id = str(getattr(ev, 'item_id', None) or f"user-{time.time()}")
@@ -606,14 +273,8 @@ class NegotiatorAgent(Agent):
             except Exception as e:
                 logger.warning(f"Failed to publish user transcript: {e}")
 
-        @self.session.on("agent_speech_interrupted")
-        def _on_interrupted(ev):
-            logger.info("Agent speech interrupted!")
-            self._cut_off = True
-
         @self.session.on("conversation_item_added")
         def _on_item_added(ev):
-            self._last_speech_time = time.time()
             try:
                 msg = ev.item
                 if msg.role == "assistant" and msg.text_content:
@@ -621,11 +282,6 @@ class NegotiatorAgent(Agent):
                     if cleaned:
                         logger.info(f"Subject speech scheduled: {cleaned}")
                         item_id = str(getattr(msg, 'id', None) or f"agent-{time.time()}")
-                        
-                        # Track subject response for better context
-                        self._last_subject_response = cleaned
-                        self._conversation_turn += 1
-                        
                         if self._room.isconnected and self._room.local_participant:
                             asyncio.create_task(
                                 self._room.local_participant.publish_data(
@@ -711,20 +367,12 @@ server = AgentServer(
     port=int(os.environ.get("PORT", 8081)),
 )
 
-# Health check endpoint for monitoring agent availability
-@server.http.get("/health")
-async def health_check(req):
-    return {"status": "healthy", "service": "can-you-negotiate-agent", "timestamp": time.time()}
-
 @server.rtc_session()
 async def entrypoint(ctx: JobContext) -> None:
     t0 = time.time()
-    logger.info("[STARTUP] Initializing Negotiate-It Agent...")
-    logger.info(f"[STARTUP] Room: {ctx.room.name}, Participant: {ctx.participant.identity}")
+    logger.info("Initializing Negotiate-It Agent...")
     
     room_name = ctx.room.name.lower()
-    t1 = time.time()
-    logger.info(f"[TIMING] Room name parsed in {(t1-t0):.3f}s")
     
     voice_preamble = (
         "You are a real, terrified human being trapped in a life-or-death crisis. "
@@ -734,28 +382,24 @@ async def entrypoint(ctx: JobContext) -> None:
     )
 
     meta = {}
-    t2 = time.time()
     try:
         if ctx.room.metadata:
             meta = json.loads(ctx.room.metadata)
-            logger.info(f"[METADATA] Loaded from ctx.room.metadata: {meta.get('name')}")
+            logger.info(f"Loaded metadata from ctx.room.metadata: {meta.get('name')}")
         elif hasattr(ctx, 'job') and ctx.job and ctx.job.room and ctx.job.room.metadata:
             meta = json.loads(ctx.job.room.metadata)
-            logger.info(f"[METADATA] Loaded from ctx.job.room.metadata: {meta.get('name')}")
+            logger.info(f"Loaded metadata from ctx.job.room.metadata: {meta.get('name')}")
         elif hasattr(ctx, 'job') and ctx.job and ctx.job.participant and ctx.job.participant.metadata:
             meta = json.loads(ctx.job.participant.metadata)
-            logger.info(f"[METADATA] Loaded from ctx.job.participant.metadata: {meta.get('name')}")
+            logger.info(f"Loaded metadata from ctx.job.participant.metadata: {meta.get('name')}")
         else:
             from livekit.api import ListRoomsRequest
-            logger.info("[METADATA] Fallback: fetching via API...")
             room_res = await ctx.api.room.list_rooms(ListRoomsRequest(names=[ctx.room.name]))
             if room_res.rooms and room_res.rooms[0].metadata:
                 meta = json.loads(room_res.rooms[0].metadata)
-                logger.info(f"[METADATA] Loaded via API: {meta.get('name')}, {meta.get('gender')}")
+                logger.info(f"Loaded room metadata via API: {meta.get('name')}, {meta.get('gender')}")
     except Exception as e:
-        logger.warning(f"[METADATA] Failed to load room metadata: {e}")
-    t3 = time.time()
-    logger.info(f"[TIMING] Metadata loading took {(t3-t2):.3f}s")
+        logger.warning(f"Failed to load room metadata: {e}")
 
     # If metadata was still pending propagation, check participants or retry briefly
     if not meta:
@@ -802,8 +446,6 @@ async def entrypoint(ctx: JobContext) -> None:
         "4. REACT SPECIFICALLY TO THEIR WORDS: Listen to their exact offer or claim. If they say 'calm down', get furious. If they promise safety, demand proof. If they mention family or a doctor, show desperate hope.\n"
         "5. STRICTLY ONLY SPOKEN WORDS: Never output reasoning, internal thoughts, meta-explanations, or stage directions (no *sighs*, no (whispers)). ONLY output the exact words coming out of your mouth.\n"
         "6. INTERRUPTIONS: If you are cut off, snap back: 'Hey, let me finish!', or react immediately to their words.\n"
-        "7. PERSONALITY CONSISTENCY: Your responses should reflect your personality traits - dominant subjects are more assertive, impulsive subjects react faster, emotional subjects show more feeling.\n"
-        "8. SITUATIONAL AWARENESS: Reference your specific situation, environment, and circumstances naturally in your responses.\n"
     )
 
     # Persona-aware defaults based on room name if metadata is completely absent
@@ -829,25 +471,11 @@ async def entrypoint(ctx: JobContext) -> None:
         archetype = str(meta_lower.get("archetype") or meta.get("archetype") or fb_archetype).lower()
         intel_instructions = meta_lower.get("intel") or meta_lower.get("instructions") or meta.get("intel") or meta.get("instructions") or fb_intel
         
-        # Extract communication style if provided
-        comm_style_data = meta_lower.get("communication_style") or meta.get("communication_style")
-        if comm_style_data and isinstance(comm_style_data, dict):
-            # Update communication style with provided parameters
-            if self._human:
-                self._human.communication_style.vocabulary_complexity = comm_style_data.get("vocabulary_complexity", 0.5)
-                self._human.communication_style.sentence_complexity = comm_style_data.get("sentence_complexity", 0.5)
-                self._human.communication_style.figurative_language = comm_style_data.get("figurative_language", 0.3)
-                self._human.communication_style.question_frequency = comm_style_data.get("question_frequency", 0.2)
-                logger.info(f"Updated communication style from scenario: {comm_style_data}")
-        
         instructions = base_rules + f"\nYOU ARE {name.upper()}.\n{intel_instructions}\nDrive the conversation naturally based entirely on what they say."
         on_enter_prompt = "Say something spontaneous and stressed to start the call based on your exact situation. 1-2 sentences."
         
         speaker = select_speaker(name=name, gender=gender, archetype=archetype)
         logger.info(f"Dynamic scenario mapped: Name={name}, Gender={gender}, Archetype={archetype} -> Speaker={speaker}")
-        
-        # Store for dynamic voice parameter updates
-        self._speaker = speaker
     else:
         name = fb_name
         gender = fb_gender
@@ -856,9 +484,6 @@ async def entrypoint(ctx: JobContext) -> None:
         on_enter_prompt = "Say something spontaneous and stressed to start the call. 1-2 sentences."
         speaker = select_speaker(name=name, gender=gender, archetype=archetype)
         logger.info(f"Fallback persona mapped: Name={name}, Gender={gender} -> Speaker={speaker}")
-        
-        # Store for dynamic voice parameter updates
-        self._speaker = speaker
 
     opening_line = meta_lower.get("openingline") or meta_lower.get("opening_line") or meta.get("openingLine") or meta.get("opening_line") or ""
     if not opening_line:
@@ -873,12 +498,10 @@ async def entrypoint(ctx: JobContext) -> None:
 
     logger.info(f"[TIMING] metadata parsed + instructions built in {time.time()-t0:.2f}s | opening_line='{opening_line}'")
 
-    t4 = time.time()
-    logger.info("[SESSION] Creating AgentSession with VAD, STT, LLM, TTS...")
     session = AgentSession(
         vad=PRELOADED_VAD,
         turn_handling={
-            "endpointing": {"min_delay": 0.12, "max_delay": 0.55},
+            "endpointing": {"min_delay": 0.08, "max_delay": 0.35},
             "interruption": {
                 "enabled": True,
                 "mode": "vad",
@@ -895,6 +518,7 @@ async def entrypoint(ctx: JobContext) -> None:
             model="whisper-large-v3-turbo",
             temperature=0.0,
             language="en",
+            prompt="Crisis negotiation dialogue between police negotiator and hostage taker. Natural conversational English speech.",
         ),
         llm=openai.LLM(
             base_url="https://api.groq.com/openai/v1",
@@ -914,11 +538,10 @@ async def entrypoint(ctx: JobContext) -> None:
             speed_alpha=1.05,
         ),
     )
-    t5 = time.time()
-    logger.info(f"[TIMING] AgentSession created in {(t5-t4):.3f}s")
+    logger.info(f"[TIMING] session created in {time.time()-t0:.2f}s")
 
     await session.start(
-        agent=NegotiatorAgent(instructions=instructions, on_enter_prompt=on_enter_prompt, room=ctx.room, subject_name=name, opening_line=opening_line, archetype=archetype),
+        agent=NegotiatorAgent(instructions=instructions, on_enter_prompt=on_enter_prompt, room=ctx.room, subject_name=name, opening_line=opening_line),
         room=ctx.room,
     )
     logger.info(f"[TIMING] session.start() completed in {time.time()-t0:.2f}s — agent is now live")

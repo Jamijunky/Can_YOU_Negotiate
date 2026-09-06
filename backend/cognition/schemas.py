@@ -139,14 +139,6 @@ class CommunicationStyle(BaseModel):
     directness: float = Field(ge=0.0, le=1.0, description="Low = indirect/evasive. High = blunt.")
     verbosity: float = Field(ge=0.0, le=1.0, description="Low = terse. High = talkative.")
     formality: float = Field(ge=0.0, le=1.0, description="Low = slang. High = formal.")
-    vocabulary_complexity: float = Field(default=0.5, ge=0.0, le=1.0, 
-        description="Low = simple words, High = complex/academic vocabulary")
-    sentence_complexity: float = Field(default=0.5, ge=0.0, le=1.0,
-        description="Low = simple SVO sentences, High = complex compound-complex structures")
-    figurative_language: float = Field(default=0.3, ge=0.0, le=1.0,
-        description="Low = literal, High = uses metaphors, idioms, figurative expressions")
-    question_frequency: float = Field(default=0.2, ge=0.0, le=1.0,
-        description="How often the person asks questions vs makes statements")
 
 
 class Goals(BaseModel):
