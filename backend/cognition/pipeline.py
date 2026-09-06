@@ -65,7 +65,7 @@ class CognitivePipeline:
         expression_history: ExpressionHistory,
         recent_context: list[str],
         world: Optional[WorldState] = None
-    ) -> Tuple[SpeechGenerationResult, TurnTrace]:
+    ) -> Tuple[SpeechGenerationResult, TurnTrace, PsychologicalState, RelationshipState, SituationModel, list[Belief]]:
         
         world = world or WorldState()
         trace = TurnTrace(
@@ -171,4 +171,4 @@ class CognitivePipeline:
             trace.generated_speech = speech_result.spoken_text
             
         trace.latencies_ms["total_turn"] = (time.perf_counter() - total_start) * 1000
-        return speech_result, trace
+        return speech_result, trace, state, rel, situation, beliefs
