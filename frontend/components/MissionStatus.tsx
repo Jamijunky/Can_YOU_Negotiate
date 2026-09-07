@@ -61,7 +61,7 @@ const MissionStatus = memo(function MissionStatus({
     <>
       {/* Stress bar */}
       <div
-        className="absolute top-0 left-0 bottom-0 w-3 bg-[#1e1e1e]/10 border-r border-[#1e1e1e]/20 z-30 flex flex-col justify-end overflow-hidden"
+        className="absolute top-0 left-0 bottom-0 z-30 flex flex-row items-stretch"
         role="meter"
         aria-label="Subject stress level"
         aria-valuemin={0}
@@ -70,27 +70,32 @@ const MissionStatus = memo(function MissionStatus({
         aria-valuetext={`Stress ${stress}%`}
       >
         <div
-          className="absolute left-0 right-0 h-0.5 bg-[#f4f0e6] z-40 shadow-[0_0_4px_rgba(0,0,0,0.5)]"
-          style={{ bottom: `${SURRENDER_THRESHOLD_PERCENT}%` }}
-          title="Surrender Threshold"
-        />
-        <div
-          className="absolute left-4 text-[10px] font-mono font-bold text-[#1e1e1e] whitespace-nowrap rotate-[-90deg] origin-bottom-left"
-          style={{ bottom: `${SURRENDER_LABEL_OFFSET_PERCENT}%` }}
+          className="flex items-center justify-center bg-[#1e1e1e] text-[#f4f0e6] font-mono text-[10px] font-bold pointer-events-none z-40 select-none"
+          style={{ writingMode: "vertical-rl", textOrientation: "mixed", transform: "rotate(180deg)" }}
         >
-          SURRENDER_ZONE
+          STRESS: {stress}
         </div>
-        <div
-          className="w-full transition-all duration-1000 ease-out"
-          style={{
-            height: `${stress}%`,
-            backgroundColor: stressColor,
-            boxShadow: stress > 80 ? "0 0 10px #dc2626" : "none",
-          }}
-        />
-      </div>
-      <div className="absolute top-2 left-1 z-30 font-mono text-xs font-bold px-2 py-1 bg-[#1e1e1e] text-[#f4f0e6]">
-        STRESS: {stress}
+        <div className="relative w-3 bg-[#1e1e1e]/10 border-r border-[#1e1e1e]/20 flex flex-col justify-end overflow-hidden">
+          <div
+            className="absolute left-0 right-0 h-0.5 bg-[#f4f0e6] z-40 shadow-[0_0_4px_rgba(0,0,0,0.5)]"
+            style={{ bottom: `${SURRENDER_THRESHOLD_PERCENT}%` }}
+            title="Surrender Threshold"
+          />
+          <div
+            className="absolute left-4 text-[10px] font-mono font-bold text-[#1e1e1e] whitespace-nowrap rotate-[-90deg] origin-bottom-left"
+            style={{ bottom: `${SURRENDER_LABEL_OFFSET_PERCENT}%` }}
+          >
+            SURRENDER_ZONE
+          </div>
+          <div
+            className="w-full transition-all duration-1000 ease-out"
+            style={{
+              height: `${stress}%`,
+              backgroundColor: stressColor,
+              boxShadow: stress > 80 ? "0 0 10px #dc2626" : "none",
+            }}
+          />
+        </div>
       </div>
 
       {/* Surrender screen */}
