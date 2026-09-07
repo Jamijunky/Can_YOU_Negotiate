@@ -52,14 +52,13 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
             if (
               data.speaker === "user" &&
               lastItem &&
-              lastItem.speaker === "user" &&
-              !lastItem.isFinal
+              lastItem.speaker === "user"
             ) {
               const updated = [...prev];
               updated[updated.length - 1] = {
                 ...lastItem,
                 id: data.id || lastItem.id,
-                text: data.text,
+                text: lastItem.text + " " + data.text,
                 isFinal: data.isFinal ?? true,
                 timestamp: timeStr,
               };

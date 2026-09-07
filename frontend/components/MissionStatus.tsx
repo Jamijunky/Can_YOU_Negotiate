@@ -59,18 +59,18 @@ const MissionStatus = memo(function MissionStatus({
 
   return (
     <>
-      {/* Vertical stress gauge - left side */}
-      <div className="absolute top-4 left-4 bottom-4 z-30 flex flex-col items-center" role="meter" aria-label="Subject stress level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={stress} aria-valuetext={`Stress ${stress}%`}>
-        <span className="font-mono text-[9px] font-bold text-[#1e1e1e] tracking-widest mb-1.5">STRESS</span>
-        <div className="flex-1 w-5 bg-[#1e1e1e]/10 border border-[#1e1e1e]/30 relative overflow-hidden">
+      {/* Stress gauge sidebar */}
+      <div className="flex flex-col items-center w-12 shrink-0" role="meter" aria-label="Subject stress level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={stress} aria-valuetext={`Stress ${stress}%`}>
+        <span className="font-mono text-[8px] font-bold text-[#1e1e1e] tracking-widest mb-1">STRESS</span>
+        <div className="flex-1 w-4 bg-[#1e1e1e]/10 border border-[#1e1e1e]/30 relative overflow-hidden rounded-sm">
           <div
             className="absolute bottom-0 left-0 right-0 transition-all duration-1000 ease-out"
             style={{ height: `${stress}%`, backgroundColor: stressColor, boxShadow: stress > 80 ? `0 0 6px ${stressColor}` : "none" }}
           />
           <div className="absolute left-0 right-0 h-px bg-[#16a34a]" style={{ bottom: `${SURRENDER_THRESHOLD_PERCENT}%` }} />
         </div>
-        <span className="font-mono text-[11px] font-bold text-[#1e1e1e] mt-1.5">{stress}%</span>
-        <span className="font-mono text-[7px] text-[#16a34a] mt-0.5 leading-none text-center">WIN<br/>&lt;30%</span>
+        <span className="font-mono text-[10px] font-bold text-[#1e1e1e] mt-1">{stress}%</span>
+        <span className="font-mono text-[6px] text-[#16a34a] mt-0.5 leading-none text-center">WIN<br/>&lt;30%</span>
       </div>
 
       {/* Surrender screen */}

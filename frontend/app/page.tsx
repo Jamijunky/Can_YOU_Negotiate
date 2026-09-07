@@ -409,33 +409,38 @@ function HomeContent() {
             </button>
           </div>
         ) : (
-          <div className="w-full max-w-4xl bg-[#f4f0e6] border-4 border-[#1e1e1e] shadow-[12px_12px_0_0_#1e1e1e] relative p-6 pl-16 mt-8">
-            <div className="absolute top-0 right-0 bg-[#d99a4e] text-[#1e1e1e] font-mono text-xs font-bold px-3 py-1 border-b-4 border-l-4 border-[#1e1e1e]">
+          <div className="w-full max-w-4xl bg-[#f4f0e6] border-4 border-[#1e1e1e] shadow-[12px_12px_0_0_#1e1e1e] relative p-6 mt-8">
+            <div className="absolute top-0 right-0 bg-[#d99a4e] text-[#1e1e1e] font-mono text-xs font-bold px-3 py-1 border-b-4 border-l-4 border-[#1e1e1e] z-10">
               LIVE_FEED // SUBJECT: {currentName}
             </div>
 
-            <LiveKitRoom
-              serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
-              token={token}
-              connect={true}
-              onDisconnected={disconnect}
-              audio={true}
-              video={false}
-            >
-              <IntelDisplay intel={currentIntel} />
-              <Watchdog onDisconnect={disconnect} isHolding={tacticalHold} />
-              <SimulationUI
-                subjectName={currentName}
-                tacticalHold={tacticalHold}
-                setTacticalHold={setTacticalHold}
-                onDisconnect={disconnect}
-              />
-              <div className="w-full flex justify-center z-10">
-                <LiveTranscriptFeed subjectName={currentName} />
-              </div>
+            <div className="flex gap-4">
               <MissionStatus onReport={setReport} />
-              <RoomAudioRenderer />
-            </LiveKitRoom>
+
+              <div className="flex-1 min-w-0">
+                <LiveKitRoom
+                  serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
+                  token={token}
+                  connect={true}
+                  onDisconnected={disconnect}
+                  audio={true}
+                  video={false}
+                >
+                  <IntelDisplay intel={currentIntel} />
+                  <Watchdog onDisconnect={disconnect} isHolding={tacticalHold} />
+                  <SimulationUI
+                    subjectName={currentName}
+                    tacticalHold={tacticalHold}
+                    setTacticalHold={setTacticalHold}
+                    onDisconnect={disconnect}
+                  />
+                  <div className="w-full flex justify-center z-10">
+                    <LiveTranscriptFeed subjectName={currentName} />
+                  </div>
+                  <RoomAudioRenderer />
+                </LiveKitRoom>
+              </div>
+            </div>
           </div>
         )}
       </div>
