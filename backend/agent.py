@@ -263,7 +263,7 @@ class NegotiatorAgent(Agent):
                 )
 
             agent_lower = agent_text.lower()
-            if self._stress <= 20 or any(kw in agent_lower for kw in ['i give up', 'putting my hands up', 'walking out', 'i surrender', "i'm coming out", "hands are up"]):
+            if self._stress <= 30 or any(kw in agent_lower for kw in ['i give up', 'putting my hands up', 'walking out', 'i surrender', "i'm coming out", "hands are up"]):
                 if not self._surrendered:
                     self._surrendered = True
                     logger.info("Triggered SURRENDER based on dialogue and stress level!")

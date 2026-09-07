@@ -59,17 +59,18 @@ const MissionStatus = memo(function MissionStatus({
 
   return (
     <>
-      {/* Horizontal stress bar at top */}
-      <div className="absolute top-0 left-0 right-0 z-30" role="meter" aria-label="Subject stress level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={stress} aria-valuetext={`Stress ${stress}%`}>
-        <div className="flex items-center gap-2 px-3 py-1 bg-[#1e1e1e]">
+      {/* Horizontal stress bar */}
+      <div className="absolute top-20 left-0 right-0 z-30" role="meter" aria-label="Subject stress level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={stress} aria-valuetext={`Stress ${stress}%`}>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-[#1e1e1e]">
           <span className="font-mono text-[11px] font-bold text-[#f4f0e6] shrink-0">STRESS: {stress}%</span>
-          <div className="flex-1 h-2 bg-[#f4f0e6]/10 overflow-hidden">
+          <div className="flex-1 h-2.5 bg-[#f4f0e6]/10 overflow-hidden relative">
             <div
               className="h-full transition-all duration-1000 ease-out"
               style={{ width: `${stress}%`, backgroundColor: stressColor, boxShadow: stress > 80 ? "0 0 8px #dc2626" : "none" }}
             />
+            <div className="absolute top-0 bottom-0 w-px bg-[#16a34a] opacity-70" style={{ left: `${SURRENDER_THRESHOLD_PERCENT}%` }} title="Win threshold" />
           </div>
-          <div className="absolute top-full left-3 w-px h-3 bg-[#f4f0e6]/30" style={{ left: `${100 - SURRENDER_THRESHOLD_PERCENT}%` }} />
+          <span className="font-mono text-[9px] text-[#16a34a] shrink-0">WIN: &lt;30%</span>
         </div>
       </div>
 
