@@ -531,7 +531,6 @@ async def entrypoint(ctx: JobContext) -> None:
         },
         tts_text_transforms=["filter_markdown", "filter_emoji", filter_inner_thoughts],
         stt=_google_module.STT(
-            api_key=os.environ.get("GOOGLE_API_KEY"),
             language="en-US",
             model="chirp-2",
         ),
