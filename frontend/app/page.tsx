@@ -57,11 +57,15 @@ function HomeContent() {
         setScenarioData(defaultData);
       }
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
         const scenarioRes = await fetch("/api/scenario", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ persona, difficulty, customMotive }),
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
         const scenarioJson = await scenarioRes.json();
         if (active && scenarioRes.ok) {
           setScenarioData(scenarioJson);
@@ -85,7 +89,16 @@ function HomeContent() {
       clearTimeout(timer);
       setIsGeneratingIntel(false);
     };
-  }, [persona, difficulty, customMotive, refreshTrigger]);
+  }, [persona, difficulty, refreshTrigger]);
+
+  // Separate effect for custom persona - debounce customMotive changes
+  useEffect(() => {
+    if (persona !== "custom") return;
+    const timer = setTimeout(() => {
+      setRefreshTrigger((t) => t + 1);
+    }, CUSTOM_PERSONA_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [customMotive, persona]);
 
   const connect = useCallback(async () => {
     try {
