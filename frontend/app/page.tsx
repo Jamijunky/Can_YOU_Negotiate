@@ -41,7 +41,7 @@ function HomeContent() {
     DEFAULT_SCENARIOS.robber
   );
 
-  const [isGeneratingIntel, setIsGeneratingIntel] = useState(false);
+  const [isGeneratingIntel, setIsGeneratingIntel] = useState(true);
   const { addToast } = useToast();
 
   useEffect(() => {
