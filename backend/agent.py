@@ -595,7 +595,7 @@ async def entrypoint(ctx: JobContext) -> None:
 if __name__ == "__main__":
     # Start a minimal HTTP health check server on port 8080
     # This allows GitHub Actions cron to ping the agent and prevent Render spin-down
-    HEALTH_PORT = int(os.environ.get("HEALTH_PORT", 8080))
+    HEALTH_PORT = int(os.environ.get("PORT", 8080))
 
     class HealthHandler(BaseHTTPRequestHandler):
         def do_GET(self):

@@ -3,14 +3,13 @@ name: Backend Keep-Alive
 on:
   schedule:
     - cron: '*/5 * * * *'  # Every 5 minutes
-  workflow_dispatch:      # Allow manual trigger
+  workflow_dispatch:
 
 jobs:
-  ping-backend:
+  ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Render Backend
+      - name: Ping health check
         run: |
-          # Pings the health check endpoint to prevent free tier spin-down
           curl -sf https://can-you-negotiate-agent.onrender.com/ > /dev/null || true
-          echo "Pinged Render backend at $(date)"
+          echo "Pinged at $(date)"
