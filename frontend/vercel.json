@@ -1,9 +1,4 @@
 {
   "framework": "nextjs",
-  "crons": [
-    {
-      "path": "/api/cron/keep-alive",
-      "schedule": "*/1 * * * *"
-    }
-  ]
+  "rewrites": []
 }

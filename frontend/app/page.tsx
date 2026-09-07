@@ -17,6 +17,7 @@ import { ToastProvider, useToast } from "@/components/Toast";
 import { DEFAULT_SCENARIOS, PERSONA_LABELS, getDefaultName } from "@/lib/scenarios";
 import type { PersonaKey, Difficulty, ScenarioData } from "@/lib/types";
 import {
+  BACKEND_URL,
   CUSTOM_PERSONA_DEBOUNCE_MS,
 } from "@/lib/constants";
 
@@ -42,6 +43,10 @@ function HomeContent() {
 
   const [isGeneratingIntel, setIsGeneratingIntel] = useState(false);
   const { addToast } = useToast();
+
+  useEffect(() => {
+    fetch(BACKEND_URL, { method: "GET" }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     let active = true;
