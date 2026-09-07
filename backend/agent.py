@@ -531,8 +531,8 @@ async def entrypoint(ctx: JobContext) -> None:
         },
         tts_text_transforms=["filter_markdown", "filter_emoji", filter_inner_thoughts],
         stt=_google_module.STT(
-            language="en-US",
-            model="chirp-2",
+            languages="en-US",
+            model="latest_long",
         ),
         llm=_openai_module.LLM(
             base_url="https://api.groq.com/openai/v1",
