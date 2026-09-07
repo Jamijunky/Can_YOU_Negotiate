@@ -23,49 +23,18 @@ import re
 import json
 import time
 
-# Lazy-load heavy plugins only when needed to reduce startup import time
-_silero_module = None
-_google_module = None
-_rime_module = None
-_openai_module = None
+# Import plugins eagerly on main thread — LiveKit requires this
+from livekit.plugins import silero as _silero_module
+from livekit.plugins import google as _google_module
+from livekit.plugins import rime as _rime_module
+from livekit.plugins import openai as _openai_module
 
-def _get_silero():
-    global _silero_module
-    if _silero_module is None:
-        from livekit.plugins import silero
-        _silero_module = silero
-    return _silero_module
-
-def _get_google():
-    global _google_module
-    if _google_module is None:
-        from livekit.plugins import google
-        _google_module = google
-    return _google_module
-
-def _get_rime():
-    global _rime_module
-    if _rime_module is None:
-        from livekit.plugins import rime
-        _rime_module = rime
-    return _rime_module
-
-def _get_openai():
-    global _openai_module
-    if _openai_module is None:
-        from livekit.plugins import openai
-        _openai_module = openai
-    return _openai_module
-
-# Preload Silero VAD globally once at process startup with optimized speech threshold & prefix padding
-# prefix_padding_duration ensures the first syllable/consonant is NEVER clipped when speaking
 PRELOADED_VAD = None
 
 def _ensure_vad():
     global PRELOADED_VAD
     if PRELOADED_VAD is None:
-        silero = _get_silero()
-        PRELOADED_VAD = silero.VAD.load(
+        PRELOADED_VAD = _silero_module.VAD.load(
             min_speech_duration=0.08,
             min_silence_duration=0.28,
             prefix_padding_duration=0.35,
@@ -561,12 +530,12 @@ async def entrypoint(ctx: JobContext) -> None:
             "preemptive_generation": {"enabled": False},
         },
         tts_text_transforms=["filter_markdown", "filter_emoji", filter_inner_thoughts],
-        stt=_get_google().STT(
+        stt=_google_module.STT(
             api_key=os.environ.get("GOOGLE_API_KEY"),
             language="en-US",
             model="chirp-2",
         ),
-        llm=_get_openai().LLM(
+        llm=_openai_module.LLM(
             base_url="https://api.groq.com/openai/v1",
             api_key=os.environ.get("GROQ_API_KEY"),
             model="qwen/qwen3.8-27b",
@@ -576,7 +545,7 @@ async def entrypoint(ctx: JobContext) -> None:
             timeout=8.0,
             max_retries=2
         ),
-        tts=_get_rime().TTS(
+        tts=_rime_module.TTS(
             model="mistv3",
             speaker=speaker,
             use_websocket=True,
