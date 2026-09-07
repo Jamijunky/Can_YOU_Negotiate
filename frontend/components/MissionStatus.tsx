@@ -60,7 +60,7 @@ const MissionStatus = memo(function MissionStatus({
   return (
     <>
       {/* Horizontal stress bar */}
-      <div className="absolute top-20 left-0 right-0 z-30" role="meter" aria-label="Subject stress level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={stress} aria-valuetext={`Stress ${stress}%`}>
+      <div className="absolute top-28 left-0 right-0 z-30" role="meter" aria-label="Subject stress level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={stress} aria-valuetext={`Stress ${stress}%`}>
         <div className="flex items-center gap-2 px-3 py-1.5 bg-[#1e1e1e]">
           <span className="font-mono text-[11px] font-bold text-[#f4f0e6] shrink-0">STRESS: {stress}%</span>
           <div className="flex-1 h-2.5 bg-[#f4f0e6]/10 overflow-hidden relative">
