@@ -28,6 +28,7 @@ export interface TranscriptItem {
   text: string;
   timestamp: string;
   isFinal: boolean;
+  finalizedAt: number;
 }
 
 export interface StatusMessage {

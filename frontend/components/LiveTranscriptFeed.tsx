@@ -26,6 +26,7 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
       try {
         const data = JSON.parse(new TextDecoder().decode(msg.payload));
         if (data.type === "transcript" && data.text) {
+          const now = Date.now();
           const timeStr = new Date().toLocaleTimeString([], {
             hour12: false,
             hour: "2-digit",
@@ -33,6 +34,7 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
             second: "2-digit",
           });
           setTranscripts((prev) => {
+            // Update existing item by ID (interim → final for same utterance)
             if (data.id) {
               const idx = prev.findIndex((item) => item.id === data.id);
               if (idx !== -1) {
@@ -41,18 +43,22 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
                   ...updated[idx],
                   text: data.text,
                   isFinal: data.isFinal ?? true,
+                  finalizedAt: data.isFinal ? now : updated[idx].finalizedAt,
                   timestamp: timeStr,
                 };
                 return updated;
               }
             }
 
+            // Merge consecutive user messages within 5s of each other
             const lastItem =
               prev.length > 0 ? prev[prev.length - 1] : null;
+            const MERGE_WINDOW_MS = 5000;
             if (
               data.speaker === "user" &&
               lastItem &&
-              lastItem.speaker === "user"
+              lastItem.speaker === "user" &&
+              now - lastItem.finalizedAt < MERGE_WINDOW_MS
             ) {
               const updated = [...prev];
               updated[updated.length - 1] = {
@@ -60,17 +66,19 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
                 id: data.id || lastItem.id,
                 text: lastItem.text + " " + data.text,
                 isFinal: data.isFinal ?? true,
+                finalizedAt: data.isFinal ? now : lastItem.finalizedAt,
                 timestamp: timeStr,
               };
               return updated;
             }
 
+            // New transcript entry
             return [
               ...prev,
               {
                 id:
                   data.id ||
-                  `${data.speaker}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                  `${data.speaker}-${now}-${Math.random().toString(36).slice(2)}`,
                 speaker: data.speaker,
                 senderName:
                   data.speaker === "user"
@@ -79,6 +87,7 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
                 text: data.text,
                 timestamp: timeStr,
                 isFinal: data.isFinal ?? true,
+                finalizedAt: data.isFinal ? now : 0,
               },
             ];
           });
