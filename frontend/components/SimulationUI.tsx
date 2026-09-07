@@ -140,8 +140,7 @@ const SimulationUI = memo(function SimulationUI({
         </div>
         {isDispatching && (
           <div className="mt-2 font-mono text-[10px] uppercase tracking-widest text-[#1e1e1e]/60 animate-pulse">
-            (Waking up secure servers... This may take up to 2 minutes on cold
-            start)
+            (Connecting to subject... this should only take a few seconds)
           </div>
         )}
         <div className="h-16 mt-4 flex items-center justify-center">

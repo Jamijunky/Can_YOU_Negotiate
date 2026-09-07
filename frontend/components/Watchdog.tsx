@@ -71,7 +71,7 @@ const Watchdog = memo(function Watchdog({
           participants.length === 0
         ) {
           addToast(
-            "Dispatch Timeout: The secure servers failed to wake up in time. Please try connecting again.",
+            "Connection timeout: The subject failed to answer. Please try connecting again.",
             "error"
           );
           try {
