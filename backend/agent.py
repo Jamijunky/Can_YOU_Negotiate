@@ -1,6 +1,8 @@
 import logging
 import asyncio
 import os
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from dotenv import load_dotenv
 
 from livekit.agents import (
@@ -402,7 +404,7 @@ server = AgentServer(
     job_executor_type=JobExecutorType.THREAD,
     load_threshold=0.8,
     host=os.environ.get("HOST", "0.0.0.0"),
-    port=int(os.environ.get("PORT", 8081)),
+    port=int(os.environ.get("AGENT_PORT", 8081)),
 )
 
 @server.rtc_session()
@@ -591,4 +593,29 @@ async def entrypoint(ctx: JobContext) -> None:
     logger.info(f"[TIMING] session.start() completed in {time.time()-t0:.2f}s — agent is now live")
 
 if __name__ == "__main__":
+    # Start a minimal HTTP health check server on port 8080
+    # This allows GitHub Actions cron to ping the agent and prevent Render spin-down
+    HEALTH_PORT = int(os.environ.get("HEALTH_PORT", 8080))
+
+    class HealthHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"ok")
+
+        def log_message(self, format, *args):
+            pass  # Suppress access logs
+
+    def run_health_server():
+        try:
+            server = HTTPServer(("0.0.0.0", HEALTH_PORT), HealthHandler)
+            server.serve_forever()
+        except Exception as e:
+            logger.warning(f"Health check server failed: {e}")
+
+    health_thread = threading.Thread(target=run_health_server, daemon=True)
+    health_thread.start()
+    logger.info(f"Health check server started on port {HEALTH_PORT}")
+
     cli.run_app(server)

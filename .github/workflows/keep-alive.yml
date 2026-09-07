@@ -9,9 +9,8 @@ jobs:
   ping-backend:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Fly.io Backend
+      - name: Ping Render Backend
         run: |
-          # Fly.io machines stay alive when auto_stop_machines=false
-          # This ping is a safety net in case the machine restarts
-          curl -sf https://can-you-negotiate-agent.fly.dev/ > /dev/null || true
-          echo "Pinged Fly.io backend at $(date)"
+          # Pings the health check endpoint to prevent free tier spin-down
+          curl -sf https://can-you-negotiate-agent.onrender.com/ > /dev/null || true
+          echo "Pinged Render backend at $(date)"
