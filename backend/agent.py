@@ -540,10 +540,10 @@ async def entrypoint(ctx: JobContext) -> None:
             api_key=os.environ.get("GROQ_API_KEY"),
             model="qwen/qwen3.8-27b",
             temperature=0.75,
-            max_completion_tokens=45,
+            max_completion_tokens=120,
             extra_body={"reasoning_format": "hidden"},
-            timeout=8.0,
-            max_retries=2
+            timeout=15.0,
+            max_retries=3
         ),
         tts=_rime_module.TTS(
             model="mistv3",
