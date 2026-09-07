@@ -70,12 +70,12 @@ const MissionStatus = memo(function MissionStatus({
         aria-valuetext={`Stress ${stress}%`}
       >
         <div
-          className="flex items-center justify-center bg-[#1e1e1e] text-[#f4f0e6] font-mono text-[10px] font-bold pointer-events-none z-40 select-none"
-          style={{ writingMode: "vertical-rl", textOrientation: "mixed", transform: "rotate(180deg)" }}
+          className="flex items-center justify-center bg-[#1e1e1e] text-[#f4f0e6] font-mono text-[10px] font-bold pointer-events-none z-40 select-none shrink-0"
+          style={{ writingMode: "vertical-rl", textOrientation: "mixed", transform: "rotate(180deg)", width: "20px" }}
         >
           STRESS: {stress}
         </div>
-        <div className="relative w-3 bg-[#1e1e1e]/10 border-r border-[#1e1e1e]/20 flex flex-col justify-end overflow-hidden">
+        <div className="relative w-3 bg-[#1e1e1e]/10 border-r border-[#1e1e1e]/20 flex flex-col justify-end overflow-hidden shrink-0">
           <div
             className="absolute left-0 right-0 h-0.5 bg-[#f4f0e6] z-40 shadow-[0_0_4px_rgba(0,0,0,0.5)]"
             style={{ bottom: `${SURRENDER_THRESHOLD_PERCENT}%` }}
