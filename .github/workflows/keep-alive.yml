@@ -1,8 +1,6 @@
 name: Backend Keep-Alive
 
 on:
-  schedule:
-    - cron: '* * * * *'  # Every minute (fastest allowed by GitHub Actions)
   workflow_dispatch:
 
 jobs:
