@@ -1,4 +1,6 @@
 {
   "framework": "nextjs",
-  "rewrites": []
+  "buildCommand": "next build",
+  "installCommand": "npm install",
+  "outputDirectory": ".next"
 }
