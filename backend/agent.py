@@ -512,13 +512,10 @@ async def entrypoint(ctx: JobContext) -> None:
             "preemptive_generation": {"enabled": False},
         },
         tts_text_transforms=["filter_markdown", "filter_emoji", filter_inner_thoughts],
-        stt=openai.STT(
-            base_url="https://api.groq.com/openai/v1",
-            api_key=os.environ.get("GROQ_API_KEY"),
-            model="whisper-large-v3-turbo",
-            temperature=0.0,
-            language="en",
-            prompt="Natural conversational English speech. Transcribe exactly what is spoken.",
+        stt=google.STT(
+            api_key=os.environ.get("GOOGLE_API_KEY"),
+            language="en-US",
+            model="chirp-2",
         ),
         llm=openai.LLM(
             base_url="https://api.groq.com/openai/v1",
