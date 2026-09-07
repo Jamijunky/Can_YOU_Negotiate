@@ -28,6 +28,7 @@ from livekit.plugins import silero as _silero_module
 from livekit.plugins import google as _google_module
 from livekit.plugins import rime as _rime_module
 from livekit.plugins import openai as _openai_module
+from livekit.plugins import deepgram as _deepgram_module
 
 PRELOADED_VAD = None
 
@@ -530,9 +531,9 @@ async def entrypoint(ctx: JobContext) -> None:
             "preemptive_generation": {"enabled": False},
         },
         tts_text_transforms=["filter_markdown", "filter_emoji", filter_inner_thoughts],
-        stt=_google_module.STT(
-            languages="en-US",
-            model="latest_long",
+        stt=_deepgram_module.STT(
+            model="nova-3",
+            language="en-US",
         ),
         llm=_openai_module.LLM(
             base_url="https://api.groq.com/openai/v1",
