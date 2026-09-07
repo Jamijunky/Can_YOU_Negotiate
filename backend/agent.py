@@ -518,7 +518,7 @@ async def entrypoint(ctx: JobContext) -> None:
             model="whisper-large-v3-turbo",
             temperature=0.0,
             language="en",
-            prompt="Crisis negotiation dialogue between police negotiator and hostage taker. Natural conversational English speech.",
+            prompt="Natural conversational English speech. Transcribe exactly what is spoken.",
         ),
         llm=openai.LLM(
             base_url="https://api.groq.com/openai/v1",
