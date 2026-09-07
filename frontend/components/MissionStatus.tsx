@@ -59,42 +59,17 @@ const MissionStatus = memo(function MissionStatus({
 
   return (
     <>
-      {/* Stress bar + label container */}
-      <div
-        className="absolute top-0 left-0 bottom-0 z-30 flex flex-row items-end"
-        role="meter"
-        aria-label="Subject stress level"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={stress}
-        aria-valuetext={`Stress ${stress}%`}
-      >
-        <div
-          className="font-mono text-[10px] font-bold px-1.5 py-0.5 bg-[#1e1e1e] text-[#f4f0e6] whitespace-nowrap pointer-events-none select-none"
-          style={{ writingMode: "vertical-rl", textOrientation: "mixed", transform: "rotate(180deg)" }}
-        >
-          STRESS: {stress}
-        </div>
-        <div className="relative w-3 bg-[#1e1e1e]/10 border-r border-[#1e1e1e]/20 flex flex-col justify-end overflow-hidden">
-          <div
-            className="absolute left-0 right-0 h-0.5 bg-[#f4f0e6] z-40 shadow-[0_0_4px_rgba(0,0,0,0.5)]"
-            style={{ bottom: `${SURRENDER_THRESHOLD_PERCENT}%` }}
-            title="Surrender Threshold"
-          />
-          <div
-            className="absolute left-4 text-[10px] font-mono font-bold text-[#1e1e1e] whitespace-nowrap rotate-[-90deg] origin-bottom-left"
-            style={{ bottom: `${SURRENDER_LABEL_OFFSET_PERCENT}%` }}
-          >
-            SURRENDER_ZONE
+      {/* Horizontal stress bar at top */}
+      <div className="absolute top-0 left-0 right-0 z-30" role="meter" aria-label="Subject stress level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={stress} aria-valuetext={`Stress ${stress}%`}>
+        <div className="flex items-center gap-2 px-3 py-1 bg-[#1e1e1e]">
+          <span className="font-mono text-[11px] font-bold text-[#f4f0e6] shrink-0">STRESS: {stress}%</span>
+          <div className="flex-1 h-2 bg-[#f4f0e6]/10 overflow-hidden">
+            <div
+              className="h-full transition-all duration-1000 ease-out"
+              style={{ width: `${stress}%`, backgroundColor: stressColor, boxShadow: stress > 80 ? "0 0 8px #dc2626" : "none" }}
+            />
           </div>
-          <div
-            className="w-full transition-all duration-1000 ease-out"
-            style={{
-              height: `${stress}%`,
-              backgroundColor: stressColor,
-              boxShadow: stress > 80 ? "0 0 10px #dc2626" : "none",
-            }}
-          />
+          <div className="absolute top-full left-3 w-px h-3 bg-[#f4f0e6]/30" style={{ left: `${100 - SURRENDER_THRESHOLD_PERCENT}%` }} />
         </div>
       </div>
 
