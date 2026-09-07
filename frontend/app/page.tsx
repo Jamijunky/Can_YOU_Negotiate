@@ -773,6 +773,9 @@ export default function Home() {
     try {
       setIsConnecting(true);
       
+      // Pre-warm backend to reduce cold start delay
+      fetch('https://can-you-negotiate-agent.onrender.com', { mode: 'no-cors' }).catch(() => {});
+      
       // Instant scenario data without blocking on Groq LLM
       const finalScenarioData = scenarioData || DEFAULT_SCENARIOS[persona] || DEFAULT_SCENARIOS.robber;
 
