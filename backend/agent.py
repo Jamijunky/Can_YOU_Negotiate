@@ -12,26 +12,64 @@ from livekit.agents import (
     TurnHandlingOptions,
     cli,
 )
-from livekit.plugins import openai, rime, silero, google
 
 load_dotenv()
 logger = logging.getLogger("negotiate-it")
 
-from livekit.agents import llm
-from livekit.agents.llm import function_tool
 import zlib
 import re
 import json
 import time
 
+# Lazy-load heavy plugins only when needed to reduce startup import time
+_silero_module = None
+_google_module = None
+_rime_module = None
+_openai_module = None
+
+def _get_silero():
+    global _silero_module
+    if _silero_module is None:
+        from livekit.plugins import silero
+        _silero_module = silero
+    return _silero_module
+
+def _get_google():
+    global _google_module
+    if _google_module is None:
+        from livekit.plugins import google
+        _google_module = google
+    return _google_module
+
+def _get_rime():
+    global _rime_module
+    if _rime_module is None:
+        from livekit.plugins import rime
+        _rime_module = rime
+    return _rime_module
+
+def _get_openai():
+    global _openai_module
+    if _openai_module is None:
+        from livekit.plugins import openai
+        _openai_module = openai
+    return _openai_module
+
 # Preload Silero VAD globally once at process startup with optimized speech threshold & prefix padding
 # prefix_padding_duration ensures the first syllable/consonant is NEVER clipped when speaking
-PRELOADED_VAD = silero.VAD.load(
-    min_speech_duration=0.08,
-    min_silence_duration=0.28,
-    prefix_padding_duration=0.35,
-    activation_threshold=0.45
-)
+PRELOADED_VAD = None
+
+def _ensure_vad():
+    global PRELOADED_VAD
+    if PRELOADED_VAD is None:
+        silero = _get_silero()
+        PRELOADED_VAD = silero.VAD.load(
+            min_speech_duration=0.08,
+            min_silence_duration=0.28,
+            prefix_padding_duration=0.35,
+            activation_threshold=0.45
+        )
+    return PRELOADED_VAD
 
 FEMALE_VOICES = {
     'aggressive': ['astra', 'lyra', 'breeze'],
@@ -362,8 +400,8 @@ class NegotiatorAgent(Agent):
 
 server = AgentServer(
     job_executor_type=JobExecutorType.THREAD,
-    load_threshold=2.0,
-    host="0.0.0.0",
+    load_threshold=0.8,
+    host=os.environ.get("HOST", "0.0.0.0"),
     port=int(os.environ.get("PORT", 8081)),
 )
 
@@ -423,7 +461,15 @@ async def entrypoint(ctx: JobContext) -> None:
                     pass
             await asyncio.sleep(0.2)
         
-    meta_lower = {str(k).lower(): v for k, v in meta.items()}
+    def _sanitize_metadata_value(val: str, max_len: int = 500) -> str:
+        """Strip potentially dangerous characters from metadata to prevent prompt injection."""
+        if not isinstance(val, str):
+            return str(val)[:max_len]
+        val = val[:max_len]
+        val = re.sub(r'[<>\[\]{}]', '', val)
+        return val
+
+    meta_lower = {str(k).lower(): _sanitize_metadata_value(str(v)) if isinstance(v, str) else v for k, v in meta.items()}
     difficulty = meta_lower.get("difficulty", "medium")
     diff_instruction = ""
     if difficulty == "low":
@@ -467,6 +513,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     if dynamic_scenario or meta:
         name = meta_lower.get("name") or meta.get("name") or fb_name
+        name = re.sub(r'[^a-zA-Z\s\'-]', '', str(name))[:50] or fb_name
         gender = str(meta_lower.get("gender") or meta.get("gender") or fb_gender).lower()
         archetype = str(meta_lower.get("archetype") or meta.get("archetype") or fb_archetype).lower()
         intel_instructions = meta_lower.get("intel") or meta_lower.get("instructions") or meta.get("intel") or meta.get("instructions") or fb_intel
@@ -499,7 +546,7 @@ async def entrypoint(ctx: JobContext) -> None:
     logger.info(f"[TIMING] metadata parsed + instructions built in {time.time()-t0:.2f}s | opening_line='{opening_line}'")
 
     session = AgentSession(
-        vad=PRELOADED_VAD,
+        vad=_ensure_vad(),
         turn_handling={
             "endpointing": {"min_delay": 0.08, "max_delay": 0.35},
             "interruption": {
@@ -512,12 +559,12 @@ async def entrypoint(ctx: JobContext) -> None:
             "preemptive_generation": {"enabled": False},
         },
         tts_text_transforms=["filter_markdown", "filter_emoji", filter_inner_thoughts],
-        stt=google.STT(
+        stt=_get_google().STT(
             api_key=os.environ.get("GOOGLE_API_KEY"),
             language="en-US",
             model="chirp-2",
         ),
-        llm=openai.LLM(
+        llm=_get_openai().LLM(
             base_url="https://api.groq.com/openai/v1",
             api_key=os.environ.get("GROQ_API_KEY"),
             model="qwen/qwen3.8-27b",
@@ -527,7 +574,7 @@ async def entrypoint(ctx: JobContext) -> None:
             timeout=8.0,
             max_retries=2
         ),
-        tts=rime.TTS(
+        tts=_get_rime().TTS(
             model="mistv3",
             speaker=speaker,
             use_websocket=True,

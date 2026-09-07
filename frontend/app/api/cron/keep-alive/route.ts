@@ -1,15 +1,19 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+import { BACKEND_URL } from "@/lib/constants";
 
 export async function GET() {
   try {
-    const res = await fetch('https://can-you-negotiate-agent.onrender.com', {
-      method: 'GET',
+    const res = await fetch(BACKEND_URL, {
+      method: "GET",
       headers: {
-        'User-Agent': 'Vercel-Cron',
-      }
+        "User-Agent": "Vercel-Cron",
+      },
     });
-    return NextResponse.json({ status: 'ok', target_status: res.status });
-  } catch (error: any) {
-    return NextResponse.json({ status: 'error', message: error.message }, { status: 500 });
+    return NextResponse.json({ status: "ok", target_status: res.status });
+  } catch {
+    return NextResponse.json(
+      { status: "error", message: "Failed to reach backend." },
+      { status: 500 }
+    );
   }
 }
