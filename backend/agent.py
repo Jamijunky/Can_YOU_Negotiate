@@ -36,10 +36,10 @@ def _ensure_vad():
     global PRELOADED_VAD
     if PRELOADED_VAD is None:
         PRELOADED_VAD = _silero_module.VAD.load(
-            min_speech_duration=0.08,
-            min_silence_duration=0.28,
+            min_speech_duration=0.15,
+            min_silence_duration=0.5,
             prefix_padding_duration=0.35,
-            activation_threshold=0.45
+            activation_threshold=0.55
         )
     return PRELOADED_VAD
 
@@ -520,13 +520,13 @@ async def entrypoint(ctx: JobContext) -> None:
     session = AgentSession(
         vad=_ensure_vad(),
         turn_handling={
-            "endpointing": {"min_delay": 0.08, "max_delay": 0.35},
+            "endpointing": {"min_delay": 0.15, "max_delay": 0.5},
             "interruption": {
                 "enabled": True,
                 "mode": "vad",
-                "min_duration": 0.28,
+                "min_duration": 0.4,
                 "resume_false_interruption": True,
-                "false_interruption_timeout": 1.2,
+                "false_interruption_timeout": 1.5,
             },
             "preemptive_generation": {"enabled": False},
         },
