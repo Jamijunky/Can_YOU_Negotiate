@@ -1,4 +1,4 @@
-name: Render Keep-Alive
+name: Backend Keep-Alive
 
 on:
   schedule:
@@ -6,13 +6,12 @@ on:
   workflow_dispatch:      # Allow manual trigger
 
 jobs:
-  ping-render:
+  ping-backend:
     runs-on: ubuntu-latest
     steps:
-      # Only ping if the service is a web type (worker type does not serve HTTP)
-      # This workflow is kept as a fallback; the primary warm mechanism is
-      # Render's minInstances on the starter plan.
-      - name: Ping Render Backend
+      - name: Ping Fly.io Backend
         run: |
-          curl -sf https://can-you-negotiate-agent.onrender.com/health > /dev/null || true
-          echo "Pinged Render backend at $(date)"
+          # Fly.io machines stay alive when auto_stop_machines=false
+          # This ping is a safety net in case the machine restarts
+          curl -sf https://can-you-negotiate-agent.fly.dev/ > /dev/null || true
+          echo "Pinged Fly.io backend at $(date)"

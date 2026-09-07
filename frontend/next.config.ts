@@ -33,7 +33,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self' https://fonts.gstatic.com",
-      "connect-src 'self' wss://*.livekit.cloud https://*.livekit.cloud https://can-you-negotiate-agent.onrender.com",
+      "connect-src 'self' wss://*.livekit.cloud https://*.livekit.cloud https://can-you-negotiate-agent.fly.dev",
       "media-src 'self' blob:",
       "frame-ancestors 'none'",
     ].join("; "),

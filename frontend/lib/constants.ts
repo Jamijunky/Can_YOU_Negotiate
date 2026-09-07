@@ -1,4 +1,4 @@
-export const BACKEND_URL = process.env.BACKEND_URL || "https://can-you-negotiate-agent.onrender.com";
+export const BACKEND_URL = process.env.BACKEND_URL || "https://can-you-negotiate-agent.fly.dev";
 
 export const DISPATCH_INTERVAL_MS = 1200;
 export const DISPATCH_PROGRESS_MAX = 95;
