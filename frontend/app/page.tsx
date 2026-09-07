@@ -100,7 +100,7 @@ const MissionStatus = memo(function MissionStatus({ onReport }: { onReport: (r: 
           }}
         />
       </div>
-      <div className="absolute top-2 left-6 z-30 font-mono text-xs font-bold px-2 py-1 bg-[#1e1e1e] text-[#f4f0e6]">
+      <div className="absolute top-2 left-1 z-30 font-mono text-xs font-bold px-2 py-1 bg-[#1e1e1e] text-[#f4f0e6]">
         STRESS: {stress}
       </div>
 
@@ -418,7 +418,7 @@ const SimulationUI = memo(function SimulationUI({
       )}
 
       <div className="mb-4 flex flex-col items-center z-10">
-        <div className={`font-serif text-3xl md:text-4xl font-black uppercase tracking-tighter transition-colors text-center ${tacticalHold ? 'text-[#d99a4e]' : effectiveState === 'speaking' || effectiveState === 'listening' ? 'text-[#d99a4e]' : 'text-[#1e1e1e]'}`}>
+        <div className={`font-serif text-3xl md:text-4xl font-black uppercase tracking-tighter transition-colors text-center whitespace-nowrap ${tacticalHold ? 'text-[#d99a4e]' : effectiveState === 'speaking' || effectiveState === 'listening' ? 'text-[#d99a4e]' : 'text-[#1e1e1e]'}`}>
           [ STATUS: {tacticalHold ? 'HOLD // THINK TIME' : isDispatching ? DISPATCH_MESSAGES[dispatchStep] : effectiveState} ]
         </div>
         {isDispatching && (
