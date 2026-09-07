@@ -59,17 +59,18 @@ const MissionStatus = memo(function MissionStatus({
 
   return (
     <>
-      {/* Vertical stress bar - left side */}
-      <div className="absolute top-0 left-0 bottom-0 z-30 flex flex-col items-center py-4" role="meter" aria-label="Subject stress level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={stress} aria-valuetext={`Stress ${stress}%`}>
-        <span className="font-mono text-[9px] font-bold text-[#f4f0e6] whitespace-nowrap -rotate-90 origin-center mb-2">STRESS: {stress}%</span>
-        <div className="flex-1 w-3 bg-[#f4f0e6]/10 overflow-hidden relative border border-[#f4f0e6]/20">
+      {/* Vertical stress gauge - left side */}
+      <div className="absolute top-4 left-4 bottom-4 z-30 flex flex-col items-center" role="meter" aria-label="Subject stress level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={stress} aria-valuetext={`Stress ${stress}%`}>
+        <span className="font-mono text-[9px] font-bold text-[#1e1e1e] tracking-widest mb-1.5">STRESS</span>
+        <div className="flex-1 w-5 bg-[#1e1e1e]/10 border border-[#1e1e1e]/30 relative overflow-hidden">
           <div
             className="absolute bottom-0 left-0 right-0 transition-all duration-1000 ease-out"
-            style={{ height: `${stress}%`, backgroundColor: stressColor, boxShadow: stress > 80 ? "0 0 8px #dc2626" : "none" }}
+            style={{ height: `${stress}%`, backgroundColor: stressColor, boxShadow: stress > 80 ? `0 0 6px ${stressColor}` : "none" }}
           />
-          <div className="absolute left-0 right-0 h-px bg-[#16a34a] opacity-70" style={{ bottom: `${SURRENDER_THRESHOLD_PERCENT}%` }} title="Win threshold" />
+          <div className="absolute left-0 right-0 h-px bg-[#16a34a]" style={{ bottom: `${SURRENDER_THRESHOLD_PERCENT}%` }} />
         </div>
-        <span className="font-mono text-[8px] text-[#16a34a] mt-1 whitespace-nowrap">WIN<br/>&lt;30%</span>
+        <span className="font-mono text-[11px] font-bold text-[#1e1e1e] mt-1.5">{stress}%</span>
+        <span className="font-mono text-[7px] text-[#16a34a] mt-0.5 leading-none text-center">WIN<br/>&lt;30%</span>
       </div>
 
       {/* Surrender screen */}

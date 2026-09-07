@@ -409,7 +409,7 @@ function HomeContent() {
             </button>
           </div>
         ) : (
-          <div className="w-full max-w-4xl bg-[#f4f0e6] border-4 border-[#1e1e1e] shadow-[12px_12px_0_0_#1e1e1e] relative p-6 pl-12 mt-8">
+          <div className="w-full max-w-4xl bg-[#f4f0e6] border-4 border-[#1e1e1e] shadow-[12px_12px_0_0_#1e1e1e] relative p-6 pl-16 mt-8">
             <div className="absolute top-0 right-0 bg-[#d99a4e] text-[#1e1e1e] font-mono text-xs font-bold px-3 py-1 border-b-4 border-l-4 border-[#1e1e1e]">
               LIVE_FEED // SUBJECT: {currentName}
             </div>
