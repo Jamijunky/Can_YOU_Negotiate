@@ -6,6 +6,7 @@ import {
   useRemoteParticipants,
   useRoomContext,
 } from "@livekit/components-react";
+import { ParticipantKind } from "livekit-client";
 import { memo, useCallback, useState, useEffect, useRef } from "react";
 import AudioCover from "./AudioCover";
 import {
@@ -54,8 +55,7 @@ const SimulationUI = memo(function SimulationUI({
   const remoteParticipants = useRemoteParticipants();
   const hasAgent = remoteParticipants.some(
     (p) =>
-      (p.kind as unknown as number) === 4 ||
-      (p.kind as unknown as string) === "agent" ||
+      p.kind === ParticipantKind.AGENT ||
       p.identity.startsWith("agent-")
   );
 
