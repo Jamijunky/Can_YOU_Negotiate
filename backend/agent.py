@@ -673,13 +673,21 @@ class NegotiatorAgent(Agent):
             if not transcript:
                 return
             if ev.is_final:
-                # Deduplicate: skip if same or subset of last published text
+                # Deduplicate: skip if same, subset, or high word overlap
                 if hasattr(self, '_last_published_user_text') and self._last_published_user_text:
                     prev = self._last_published_user_text.strip().lower()
                     curr = transcript.strip().lower()
                     if curr == prev or prev.startswith(curr) or curr.startswith(prev):
                         logger.info(f"Skipping duplicate user transcript: {transcript}")
                         return
+                    # Word overlap check
+                    prev_words = set(prev.split())
+                    curr_words = curr.split()
+                    if curr_words:
+                        overlap = sum(1 for w in curr_words if w in prev_words)
+                        if overlap / len(curr_words) > 0.6:
+                            logger.info(f"Skipping high-overlap user transcript: {transcript}")
+                            return
                 self._last_published_user_text = transcript
                 self._last_user_text = transcript
                 try:
