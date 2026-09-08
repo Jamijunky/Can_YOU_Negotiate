@@ -48,9 +48,6 @@ const RelationshipDisplay = memo(function RelationshipDisplay() {
 
   return (
     <div className="w-full bg-[#1e1e1e] border border-[#f4f0e6]/20 p-3 text-left" role="region" aria-label="Relationship status">
-      <div className="font-mono text-[10px] font-bold tracking-widest text-[#d99a4e] uppercase mb-3">
-        RELATIONSHIP_DYNAMICS
-      </div>
       <div className="space-y-2.5">
         {metrics.map((m) => {
           const color = getBarColor(m.value, m.inverse);
