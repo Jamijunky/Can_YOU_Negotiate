@@ -151,8 +151,10 @@ def clean_spoken_text(text: str) -> str:
     # Strip any stray trailing JSON artifacts (e.g., '"]}', '"}', or quotes) if the LLM escaped JSON
     text = re.sub(r'[\"\']\s*[\}\]]+\s*$', '', text)
     text = re.sub(r'[\"\'\`]+$', '', text)
-    # Collapse multiple ellipses or dot sequences into a single comma pause
-    text = re.sub(r'(\s*[\.…]+\s*)+', ', ', text)
+    # Collapse multiple consecutive ellipses into one, but preserve ellipses (they convey hesitation)
+    text = re.sub(r'(\.{3,}|…{2,})', '...', text)
+    # Collapse multiple spaced ellipses into one
+    text = re.sub(r'(\.\.\.\s*){2,}', '... ', text)
     return text.strip()
 
 
@@ -312,20 +314,46 @@ class NegotiatorAgent(Agent):
     async def _evaluate_dialogue_state(self, user_text: str, agent_text: str):
         """Asynchronously updates stress, surrender, escalation, and relationship in the background without blocking voice streaming."""
         try:
-            u = user_text.lower()
+            u = user_text.lower().strip()
             delta = 0
-            calm_signals = ('calm', 'listen', 'promise', 'help', 'safe', 'understand', 'doctor', 'family', 'water', 'food', 'nobody gets hurt', 'talk to me', 'here with you', 'trust me', 'no one will hurt')
-            tense_signals = ('surrender now', 'give up', 'breach', 'sniper', 'jail', 'prison', 'guilty', 'drop the weapon', 'final warning', 'now or else', 'idiot', 'crazy', 'shut up', 'back off')
-            
-            for word in calm_signals:
-                if word in u:
-                    delta -= 5
-            for word in tense_signals:
-                if word in u:
-                    delta += 8
-            
+
+            # More precise matching — use word boundaries to avoid false positives
+            calm_signals = [
+                (r'\bcalm\b', -3), (r'\bcalm down\b', -4),
+                (r'\blisten\b', -2), (r'\bpromise\b', -3),
+                (r'\bhelp you\b', -3), (r'\bsafe\b', -2),
+                (r'\bunderstand\b', -2), (r'\bdoctor\b', -3),
+                (r'\bwater\b', -2), (r'\bfood\b', -2),
+                (r'\bnobody gets hurt\b', -4), (r'\btalk to me\b', -2),
+                (r'\bhere with you\b', -3), (r'\btrust me\b', -3),
+                (r'\bno one will hurt\b', -4), (r'\bfamily\b', -2),
+                (r'\bwe can fix this\b', -3), (r'\byour name\b', -2),
+                (r'\bhow are you\b', -2), (r'\btell me\b', -2),
+            ]
+            tense_signals = [
+                (r'\bsurrender now\b', 6), (r'\bgive up\b', 5),
+                (r'\bbreach\b', 8), (r'\bsniper\b', 7),
+                (r'\bjail\b', 4), (r'\bprison\b', 4),
+                (r'\bdrop the weapon\b', 6), (r'\bfinal warning\b', 6),
+                (r'\bnow or else\b', 6), (r'\bshut up\b', 5),
+                (r'\bback off\b', 4), (r'\bcome in\b', 5),
+                (r'\bminutes left\b', 4), (r'\btime is up\b', 5),
+            ]
+
+            for pattern, weight in calm_signals:
+                if re.search(pattern, u):
+                    delta += weight
+            for pattern, weight in tense_signals:
+                if re.search(pattern, u):
+                    delta += weight
+
+            # If no signals matched, small natural drift based on response length
             if delta == 0 and u:
-                delta = -2 if len(u.split()) >= 4 else 1
+                word_count = len(u.split())
+                if word_count >= 8:
+                    delta = -2  # longer calmer response
+                elif word_count <= 3:
+                    delta = 1   # short curt response
 
             self._stress = max(10, min(100, self._stress + delta))
             logger.info(f"Updated internal stress to {self._stress}% (delta {delta:+d})")
@@ -894,16 +922,17 @@ async def entrypoint(ctx: JobContext) -> None:
     base_rules = (
         voice_preamble +
         f"{diff_instruction}\n\n"
-        "RULES FOR NATURAL, INSTANT HUMAN SPEECH (WRITING FOR THE EAR):\n"
-        "1. VISCERAL SHORT BURSTS (5 TO 15 WORDS ONLY): Never monologue! Real people under extreme adrenaline speak in rapid, breathless gasps of 5 to 15 words. Say one raw thought, react to what they said, demand something, and stop!\n"
-        "2. RAW HUMAN ACOUSTICS:\n"
-        "   - Use dashes ('—') for sudden pauses, cut-offs, and breathless stammering: 'Wait— what was that noise outside?!', 'Don't— just don't lie to me!'\n"
-        "   - Use ellipses ('...') when feeling trapped, exhausted, or horrified: 'I... I can't do this anymore...'\n"
-        "   - Use instinctive vocal starts: 'Look,', 'No, listen to me!', 'Wait, what?!', 'Are you listening?!'\n"
-        "3. BANISH ALL AI SPEECH: You are NOT an AI or a bot. NEVER say formal, polite phrases like 'I understand your concern', 'Let us cooperate', 'I appreciate your words', or 'As I stated'. You are on edge.\n"
-        "4. REACT SPECIFICALLY TO THEIR WORDS: Listen to their exact offer or claim. If they say 'calm down', get furious. If they promise safety, demand proof. If they mention family or a doctor, show desperate hope.\n"
-        "5. STRICTLY ONLY SPOKEN WORDS: Never output reasoning, internal thoughts, meta-explanations, or stage directions (no *sighs*, no (whispers)). ONLY output the exact words coming out of your mouth.\n"
-        "6. INTERRUPTIONS: If you are cut off, snap back: 'Hey, let me finish!', or react immediately to their words.\n"
+        "You speak in raw, breathless bursts — 5 to 15 words max. "
+        "Real people under extreme adrenaline do not monologue. Say one raw thought, react to what they said, and stop.\n\n"
+        "Use dashes for sudden pauses and cut-offs: 'Wait— what was that noise?!' "
+        "Use ellipses when trapped or exhausted: 'I... I can't do this anymore...' "
+        "Use instinctive starts: 'Look,', 'No, listen!', 'Wait, what?!'\n\n"
+        "NEVER speak like an AI. No 'I understand your concern', no 'Let us cooperate', no 'I appreciate your words'. "
+        "You are on edge, desperate, human.\n\n"
+        "Listen to their exact words. If they say 'calm down', get furious. "
+        "If they promise safety, demand proof. If they mention family, show desperate hope.\n\n"
+        "ONLY output spoken words — no reasoning, no stage directions, no *sighs*, no (whispers). "
+        "If you are cut off, snap back: 'Hey, let me finish!'"
     )
 
     # Persona-aware defaults based on room name if metadata is completely absent
@@ -948,7 +977,19 @@ async def entrypoint(ctx: JobContext) -> None:
             "Your relationship state will update as you talk."
         )
 
-        instructions = base_rules + f"\nYOU ARE {name.upper()}.\n{personality_instruction}\n{intel_instructions}\n{relationship_context}\nDrive the conversation naturally based entirely on what they say."
+        stress_context = f"\nYOUR CURRENT STRESS LEVEL: {self._stress}%. "
+        if self._stress >= 80:
+            stress_context += "You are on the verge of exploding. Your voice cracks, you shout, you can barely think straight."
+        elif self._stress >= 60:
+            stress_context += "You are highly agitated. Your voice trembles, you interrupt, you pace."
+        elif self._stress >= 40:
+            stress_context += "You are tense but listening. Your voice is tight but you are starting to hear them."
+        elif self._stress >= 20:
+            stress_context += "You are calming down. Your breathing slows, you start to open up."
+        else:
+            stress_context += "You are almost at peace. You are ready to surrender if they follow through."
+
+        instructions = base_rules + f"\nYOU ARE {name.upper()}.\n{personality_instruction}\n{intel_instructions}\n{stress_context}\n{relationship_context}\nDrive the conversation naturally based entirely on what they say."
         on_enter_prompt = "Say something spontaneous and stressed to start the call based on your exact situation. 1-2 sentences."
 
         speaker = select_speaker(name=name, gender=gender, personality=personality)
@@ -963,7 +1004,18 @@ async def entrypoint(ctx: JobContext) -> None:
             "Build rapport slowly through empathy and active listening. "
             "Avoid ultimatums — they will backfire."
         )
-        instructions = base_rules + f"\nYOU ARE {name.upper()}.\n{personality_instruction}\n{fb_intel}\n{relationship_context}\nDrive the conversation naturally based entirely on what they say."
+        stress_context = f"\nYOUR CURRENT STRESS LEVEL: {self._stress}%. "
+        if self._stress >= 80:
+            stress_context += "You are on the verge of exploding. Your voice cracks, you shout, you can barely think straight."
+        elif self._stress >= 60:
+            stress_context += "You are highly agitated. Your voice trembles, you interrupt, you pace."
+        elif self._stress >= 40:
+            stress_context += "You are tense but listening. Your voice is tight but you are starting to hear them."
+        elif self._stress >= 20:
+            stress_context += "You are calming down. Your breathing slows, you start to open up."
+        else:
+            stress_context += "You are almost at peace. You are ready to surrender if they follow through."
+        instructions = base_rules + f"\nYOU ARE {name.upper()}.\n{personality_instruction}\n{fb_intel}\n{stress_context}\n{relationship_context}\nDrive the conversation naturally based entirely on what they say."
         on_enter_prompt = "Say something spontaneous and stressed to start the call. 1-2 sentences."
         speaker = select_speaker(name=name, gender=gender, personality=personality)
         logger.info(f"Fallback persona mapped: Name={name}, Gender={gender} -> Speaker={speaker}")
@@ -1000,13 +1052,15 @@ async def entrypoint(ctx: JobContext) -> None:
         stt=_deepgram_module.STT(
             model="nova-3",
             language="en-US",
+            smart_format=True,
+            punctuate=True,
         ),
         llm=_openai_module.LLM(
             base_url="https://api.groq.com/openai/v1",
             api_key=os.environ.get("GROQ_API_KEY"),
             model="qwen/qwen3.8-27b",
-            temperature=0.75,
-            max_completion_tokens=120,
+            temperature=0.82,
+            max_completion_tokens=256,
             extra_body={"reasoning_format": "hidden"},
             timeout=15.0,
             max_retries=3
