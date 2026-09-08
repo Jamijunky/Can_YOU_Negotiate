@@ -1,6 +1,6 @@
 "use client";
 
-import { useDataChannel, useVoiceAssistant } from "@livekit/components-react";
+import { useDataChannel } from "@livekit/components-react";
 import { memo, useCallback, useState, useEffect, useRef } from "react";
 import type { TranscriptItem } from "@/lib/types";
 
@@ -11,9 +11,6 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
 }) {
   const [transcripts, setTranscripts] = useState<TranscriptItem[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const { state } = useVoiceAssistant();
-  const isSpeaking = state === "speaking";
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -37,16 +34,16 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
             const lastItem =
               prev.length > 0 ? prev[prev.length - 1] : null;
 
-            // Deduplicate: skip if same text as last entry within 5s
+            // Deduplicate: skip only if exact same text as last entry within 5s
             const MERGE_WINDOW_MS = 5000;
             if (
               lastItem &&
               now - lastItem.finalizedAt < MERGE_WINDOW_MS
             ) {
-              const prevNorm = lastItem.text.toLowerCase().replace(/[.!?,]/g, '').trim();
-              const currNorm = data.text.toLowerCase().replace(/[.!?,]/g, '').trim();
-              if (currNorm === prevNorm || prevNorm.includes(currNorm) || currNorm.includes(prevNorm)) {
-                return prev; // skip duplicate
+              const prevNorm = lastItem.text.toLowerCase().trim();
+              const currNorm = data.text.toLowerCase().trim();
+              if (currNorm === prevNorm) {
+                return prev; // skip exact duplicate
               }
             }
 
@@ -100,9 +97,7 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
 
   return (
     <div
-      className={`w-full max-w-2xl mt-6 bg-[#1e1e1e] border-2 border-[#d99a4e] p-4 text-left shadow-[6px_6px_0_0_#1e1e1e] transition-opacity duration-300 ${
-        isSpeaking ? "opacity-40" : "opacity-100"
-      }`}
+      className={`w-full max-w-2xl mt-6 bg-[#1e1e1e] border-2 border-[#d99a4e] p-4 text-left shadow-[6px_6px_0_0_#1e1e1e] transition-opacity duration-300`}
       role="log"
       aria-label="Live conversation transcript"
       aria-live="polite"

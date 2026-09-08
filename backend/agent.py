@@ -121,7 +121,7 @@ def clean_spoken_text(text: str) -> str:
         filtered = []
         for p in paragraphs:
             if any(ind in p.lower() for ind in meta_indicators):
-                break
+                continue
             filtered.append(p)
         text = ' '.join(filtered) if filtered else paragraphs[0]
     # Strip trailing JSON artifacts
@@ -247,6 +247,7 @@ async def filter_inner_thoughts(text_stream):
 
 class NegotiatorAgent(Agent):
     def __init__(self, instructions: str, on_enter_prompt: str, room, subject_name: str = "Alex", opening_line: str = "") -> None:
+        self._base_instructions = instructions
         super().__init__(
             instructions=instructions,
         )
@@ -331,6 +332,9 @@ class NegotiatorAgent(Agent):
             self._stress = max(10, min(100, self._stress + delta))
             logger.info(f"Updated internal stress to {self._stress}% (delta {delta:+d})")
 
+            # Update LLM instructions with fresh dynamic context (stress, relationship, escalation)
+            self.instructions = self._base_instructions + "\n" + self._get_relationship_context()
+
             # Evaluate relationship dynamics
             self._evaluate_relationship(user_text)
             # Evaluate escalation chain
@@ -342,51 +346,41 @@ class NegotiatorAgent(Agent):
             hint = self._generate_coaching_hint(user_text, agent_text)
             
             if self._room.isconnected and self._room.local_participant:
-                await self._room.local_participant.publish_data(
-                    json.dumps({"type": "stress", "level": self._stress}).encode("utf-8"),
-                    reliable=True
-                )
-                await self._room.local_participant.publish_data(
-                    json.dumps({"type": "relationship", **self._relationship}).encode("utf-8"),
-                    reliable=True
-                )
-                await self._room.local_participant.publish_data(
-                    json.dumps({
-                        "type": "escalation",
-                        "stage": self._escalation_stage,
-                        "turnsInStage": self._escalation_turns_in_stage,
-                        "totalTurns": self._escalation_total_turns,
-                    }).encode("utf-8"),
-                    reliable=True
-                )
-                await self._room.local_participant.publish_data(
-                    json.dumps({"type": "plotBeats", "beats": self._plot_beats}).encode("utf-8"),
-                    reliable=True
-                )
-                if hint:
-                    await self._room.local_participant.publish_data(
-                        json.dumps({"type": "coachingHint", **hint}).encode("utf-8"),
-                        reliable=True
-                    )
+                for data_msg in [
+                    {"type": "stress", "level": self._stress},
+                    {"type": "relationship", **self._relationship},
+                    {"type": "escalation", "stage": self._escalation_stage, "turnsInStage": self._escalation_turns_in_stage, "totalTurns": self._escalation_total_turns},
+                    {"type": "plotBeats", "beats": self._plot_beats},
+                ] + ([{"type": "coachingHint", **hint}] if hint else []):
+                    try:
+                        await self._room.local_participant.publish_data(
+                            json.dumps(data_msg).encode("utf-8"), reliable=True
+                        )
+                    except Exception as pub_err:
+                        logger.warning(f"Failed to publish {data_msg.get('type')}: {pub_err}")
 
             agent_lower = agent_text.lower()
             if self._stress <= 30 or any(kw in agent_lower for kw in ['i give up', 'putting my hands up', 'walking out', 'i surrender', "i'm coming out", "hands are up"]):
                 if not self._surrendered:
                     self._surrendered = True
                     logger.info("Triggered SURRENDER based on dialogue and stress level!")
-                    await self._room.local_participant.publish_data(
-                        json.dumps({"type": "surrender"}).encode("utf-8"),
-                        reliable=True
-                    )
+                    try:
+                        await self._room.local_participant.publish_data(
+                            json.dumps({"type": "surrender"}).encode("utf-8"), reliable=True
+                        )
+                    except Exception as pub_err:
+                        logger.warning(f"Failed to publish surrender: {pub_err}")
                     asyncio.create_task(self._generate_report("SUCCESSFUL SURRENDER"))
             elif self._stress >= 100 or any(kw in agent_lower for kw in ["it's over for all of you", "shoot them", "pulling the trigger", "last warning"]):
                 if not self._escalated:
                     self._escalated = True
                     logger.info("Triggered ESCALATION based on dialogue and stress level!")
-                    await self._room.local_participant.publish_data(
-                        json.dumps({"type": "escalate"}).encode("utf-8"),
-                        reliable=True
-                    )
+                    try:
+                        await self._room.local_participant.publish_data(
+                            json.dumps({"type": "escalate"}).encode("utf-8"), reliable=True
+                        )
+                    except Exception as pub_err:
+                        logger.warning(f"Failed to publish escalate: {pub_err}")
                     asyncio.create_task(self._generate_report("FAILED NEGOTIATION - SUBJECT ESCALATED"))
         except Exception as e:
             logger.warning(f"Error in background stress evaluation: {e}")
@@ -606,6 +600,18 @@ class NegotiatorAgent(Agent):
         r = self._relationship
         parts = []
 
+        # Stress awareness — tells LLM its current emotional state
+        if self._stress >= 80:
+            parts.append(f"YOUR STRESS LEVEL: {self._stress}%. You are on the verge of exploding. Your voice cracks, you shout, you can barely think straight.")
+        elif self._stress >= 60:
+            parts.append(f"YOUR STRESS LEVEL: {self._stress}%. You are highly agitated. Your voice trembles, you interrupt, you pace.")
+        elif self._stress >= 40:
+            parts.append(f"YOUR STRESS LEVEL: {self._stress}%. You are tense but listening. Your voice is tight but you are starting to hear them.")
+        elif self._stress >= 20:
+            parts.append(f"YOUR STRESS LEVEL: {self._stress}%. You are calming down. Your breathing slows, you start to open up.")
+        else:
+            parts.append(f"YOUR STRESS LEVEL: {self._stress}%. You are almost at peace. You are ready to surrender if they follow through.")
+
         if r["rapport"] >= 70:
             parts.append("You feel an unexpected connection with this negotiator. Their words are getting through to you.")
         elif r["rapport"] >= 40:
@@ -667,11 +673,9 @@ class NegotiatorAgent(Agent):
             if not transcript:
                 return
             if ev.is_final:
-                # Deduplicate: skip if same or very similar to last published text
+                # Deduplicate: skip if exact same text as last published
                 if hasattr(self, '_last_published_user_text'):
-                    prev = self._last_published_user_text.lower().rstrip('.!?,')
-                    curr = transcript.lower().rstrip('.!?,')
-                    if curr == prev or curr.startswith(prev) or prev.startswith(curr):
+                    if transcript.strip().lower() == self._last_published_user_text.strip().lower():
                         logger.info(f"Skipping duplicate user transcript: {transcript}")
                         return
                 self._last_published_user_text = transcript
@@ -961,19 +965,7 @@ async def entrypoint(ctx: JobContext) -> None:
             "Your relationship state will update as you talk."
         )
 
-        stress_context = f"\nYOUR CURRENT STRESS LEVEL: {self._stress}%. "
-        if self._stress >= 80:
-            stress_context += "You are on the verge of exploding. Your voice cracks, you shout, you can barely think straight."
-        elif self._stress >= 60:
-            stress_context += "You are highly agitated. Your voice trembles, you interrupt, you pace."
-        elif self._stress >= 40:
-            stress_context += "You are tense but listening. Your voice is tight but you are starting to hear them."
-        elif self._stress >= 20:
-            stress_context += "You are calming down. Your breathing slows, you start to open up."
-        else:
-            stress_context += "You are almost at peace. You are ready to surrender if they follow through."
-
-        instructions = base_rules + f"\nYOU ARE {name.upper()}.\n{personality_instruction}\n{intel_instructions}\n{stress_context}\n{relationship_context}\nDrive the conversation naturally based entirely on what they say."
+        instructions = base_rules + f"\nYOU ARE {name.upper()}.\n{personality_instruction}\n{intel_instructions}\n{relationship_context}\nDrive the conversation naturally based entirely on what they say."
         on_enter_prompt = "Say something spontaneous and stressed to start the call based on your exact situation. 1-2 sentences."
 
         speaker = select_speaker(name=name, gender=gender, personality=personality)
@@ -988,18 +980,7 @@ async def entrypoint(ctx: JobContext) -> None:
             "Build rapport slowly through empathy and active listening. "
             "Avoid ultimatums — they will backfire."
         )
-        stress_context = f"\nYOUR CURRENT STRESS LEVEL: {self._stress}%. "
-        if self._stress >= 80:
-            stress_context += "You are on the verge of exploding. Your voice cracks, you shout, you can barely think straight."
-        elif self._stress >= 60:
-            stress_context += "You are highly agitated. Your voice trembles, you interrupt, you pace."
-        elif self._stress >= 40:
-            stress_context += "You are tense but listening. Your voice is tight but you are starting to hear them."
-        elif self._stress >= 20:
-            stress_context += "You are calming down. Your breathing slows, you start to open up."
-        else:
-            stress_context += "You are almost at peace. You are ready to surrender if they follow through."
-        instructions = base_rules + f"\nYOU ARE {name.upper()}.\n{personality_instruction}\n{fb_intel}\n{stress_context}\n{relationship_context}\nDrive the conversation naturally based entirely on what they say."
+        instructions = base_rules + f"\nYOU ARE {name.upper()}.\n{personality_instruction}\n{fb_intel}\n{relationship_context}\nDrive the conversation naturally based entirely on what they say."
         on_enter_prompt = "Say something spontaneous and stressed to start the call. 1-2 sentences."
         speaker = select_speaker(name=name, gender=gender, personality=personality)
         logger.info(f"Fallback persona mapped: Name={name}, Gender={gender} -> Speaker={speaker}")
@@ -1044,7 +1025,7 @@ async def entrypoint(ctx: JobContext) -> None:
             api_key=os.environ.get("GROQ_API_KEY"),
             model="qwen/qwen3.8-27b",
             temperature=0.82,
-            max_completion_tokens=256,
+            max_completion_tokens=400,
             extra_body={"reasoning_format": "hidden"},
             timeout=15.0,
             max_retries=3
