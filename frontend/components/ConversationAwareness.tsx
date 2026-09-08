@@ -168,23 +168,6 @@ const ConversationAwareness = memo(function ConversationAwareness({
             </div>
           )}
 
-          {/* What they're pushing back on */}
-          {awareness.refused.length > 0 && (
-            <div>
-              <div className="font-mono text-[8px] text-[#dc2626]/50 uppercase tracking-[0.15em] mb-1.5">
-                Pushing back on
-              </div>
-              <ul className="space-y-1">
-                {awareness.refused.map((r, i) => (
-                  <li key={i} className="font-serif text-[10px] text-[#dc2626]/50 leading-snug flex gap-1.5 animate-in fade-in duration-500">
-                    <span className="shrink-0 mt-px">×</span>
-                    <span className="line-clamp-2">{r}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
           {/* Turn counter — a quiet signal of how long this has been going */}
           <div className="font-mono text-[8px] text-[#1e1e1e]/20 tabular-nums">
             {awareness.turns} {awareness.turns === 1 ? "exchange" : "exchanges"}

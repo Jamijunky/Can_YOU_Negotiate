@@ -281,6 +281,8 @@ class NegotiatorAgent(Agent):
         self._beliefs_about_negotiator = []  # specific beliefs about THIS negotiator
         # --- Salient memories: important events, not full transcript ---
         self._memories = []           # list of dicts: {type, content, impact?}
+        # --- Silence tracking ---
+        self._last_user_input_time = 0.0  # set properly in on_enter
 
     # Backward-compatible accessors (used by escalation, coaching, publishing)
     @property
@@ -908,6 +910,7 @@ class NegotiatorAgent(Agent):
                         return
                 self._last_published_user_text = transcript
                 self._last_user_text = transcript
+                self._last_user_input_time = time.time()  # reset silence clock
                 # Update character state BEFORE LLM responds
                 self._update_state_from_user(transcript)
                 try:
@@ -977,6 +980,64 @@ class NegotiatorAgent(Agent):
         else:
             self.session.history.add_message(role="user", content="Hello? Are you there?")
             self.session.generate_reply(instructions=self._on_enter_prompt)
+
+        # Start silence watcher — reacts when negotiator goes quiet
+        self._last_user_input_time = time.time()
+        asyncio.create_task(self._silence_watcher())
+
+    async def _silence_watcher(self):
+        """
+        Watches for negotiator silence and triggers a personality-driven reaction.
+        A paranoid veteran suspects a trap. A desperate parent pleads. An angry chef
+        rants into the void. Each person fills silence differently.
+        """
+        SILENCE_THRESHOLD_SECONDS = 12   # seconds before subject reacts
+        CHECK_INTERVAL = 3               # how often we check
+        # Don't trigger more than once every 20s to avoid spamming
+        last_silence_reaction = 0.0
+
+        # Wait a moment before the watcher becomes active
+        await asyncio.sleep(8)
+
+        while True:
+            await asyncio.sleep(CHECK_INTERVAL)
+            try:
+                now = time.time()
+                silence_duration = now - getattr(self, "_last_user_input_time", now)
+
+                # Only react if:
+                # - Silence has exceeded threshold
+                # - We haven't reacted recently
+                # - Session is still connected
+                if (
+                    silence_duration >= SILENCE_THRESHOLD_SECONDS
+                    and now - last_silence_reaction > 20
+                    and self._room.isconnected
+                ):
+                    last_silence_reaction = now
+
+                    # Build a silence prompt that matches personality
+                    # The LLM already has full character context — we just nudge it
+                    silence_prompt = (
+                        "The negotiator has gone completely silent. "
+                        f"It has been about {int(silence_duration)} seconds since they last spoke. "
+                        "React to this silence the way your character genuinely would. "
+                        "Do NOT break character. Do NOT explain yourself. "
+                        "A paranoid person might suspect something. "
+                        "A desperate person might plead or beg for a response. "
+                        "An angry person might grow more agitated. "
+                        "A calculating person might try to provoke a response. "
+                        "Say something SHORT and in character — one or two sentences at most. "
+                        "This should feel like what a real person would actually say "
+                        "when the person they're talking to suddenly goes quiet."
+                    )
+
+                    logger.info(f"[SILENCE] {int(silence_duration)}s of silence — triggering character reaction")
+                    self.session.generate_reply(instructions=silence_prompt)
+
+            except Exception as e:
+                logger.warning(f"Silence watcher error: {e}")
+                break
 
     async def _generate_report(self, outcome: str):
         try:
