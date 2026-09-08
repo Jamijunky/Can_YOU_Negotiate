@@ -72,9 +72,14 @@ function HomeContent() {
         const scenarioJson = await scenarioRes.json();
         if (active && scenarioRes.ok) {
           setScenarioData(scenarioJson);
+        } else if (active) {
+          setScenarioData(DEFAULT_SCENARIOS[persona] || DEFAULT_SCENARIOS.robber);
         }
       } catch (e) {
-        console.error("Failed to generate intel preview", e);
+        console.error("Failed to generate intel preview, using local fallback", e);
+        if (active) {
+          setScenarioData(DEFAULT_SCENARIOS[persona] || DEFAULT_SCENARIOS.robber);
+        }
       } finally {
         if (active) setIsGeneratingIntel(false);
       }
