@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from "zod";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const gemini = process.env.GEMINI_API_KEY
+  ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+  : null;
 
 const scenarioRequestSchema = z.object({
   persona: z.enum([
@@ -197,10 +201,40 @@ export async function POST(req: NextRequest) {
       if (result.briefing && !result.intel) {
         result.intel = result.briefing;
       }
-    } catch (apiErr: unknown) {
-      const msg = apiErr instanceof Error ? apiErr.message : "unknown error";
-      console.warn("Groq scenario generation hit limit, using dynamic procedural fallback:", msg);
-      result = FALLBACK_SCENARIOS[Math.floor(Math.random() * FALLBACK_SCENARIOS.length)];
+    } catch (groqErr: unknown) {
+      const msg = groqErr instanceof Error ? groqErr.message : "unknown error";
+      console.warn("Groq failed, trying Gemini:", msg);
+
+      // Try Gemini as fallback
+      if (gemini) {
+        try {
+          const model = gemini.getGenerativeModel({
+            model: "gemini-2.0-flash",
+            generationConfig: {
+              responseMimeType: "application/json",
+              temperature: 0.9,
+              maxOutputTokens: 600,
+            },
+          });
+          const geminiResult = await model.generateContent([
+            { role: "user", parts: [{ text: SYSTEM_PROMPT + "\n\n" + userPrompt }] },
+          ]);
+          let geminiContent = geminiResult.response.text() || "{}";
+          geminiContent = geminiContent.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/i, "");
+          result = JSON.parse(geminiContent);
+          if (result.briefing && !result.intel) {
+            result.intel = result.briefing;
+          }
+          console.log("Gemini fallback succeeded");
+        } catch (geminiErr: unknown) {
+          const geminiMsg = geminiErr instanceof Error ? geminiErr.message : "unknown error";
+          console.warn("Gemini also failed, using static fallback:", geminiMsg);
+          result = FALLBACK_SCENARIOS[Math.floor(Math.random() * FALLBACK_SCENARIOS.length)];
+        }
+      } else {
+        console.warn("No Gemini key configured, using static fallback");
+        result = FALLBACK_SCENARIOS[Math.floor(Math.random() * FALLBACK_SCENARIOS.length)];
+      }
     }
 
     return NextResponse.json(result);
