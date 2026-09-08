@@ -11,16 +11,30 @@ import AudioCover from "./AudioCover";
 import { DISPATCH_INTERVAL_MS, DISPATCH_PROGRESS_MAX, DISPATCH_MESSAGES } from "@/lib/constants";
 import type { VoiceAssistantState } from "@/lib/types";
 
-const SimulationUI = memo(function SimulationUI({
-  tacticalHold,
-  setTacticalHold,
-  onDisconnect,
-}: {
+// What each state actually means in plain human language
+const STATE_HUMAN: Record<string, { label: string; subtext: string; color: string }> = {
+  listening:  { label: "Listening",       subtext: "Say something.",               color: "#16a34a"  },
+  speaking:   { label: "They're talking", subtext: "Let them finish.",             color: "#d99a4e"  },
+  thinking:   { label: "Thinking...",     subtext: "Processing what you said.",    color: "#1e1e1e"  },
+  idle:       { label: "On the line",     subtext: "Say something to continue.",   color: "#1e1e1e"  },
+  connecting: { label: "Connecting...",   subtext: "",                             color: "#1e1e1e"  },
+};
+
+interface SimulationUIProps {
   subjectName: string;
   tacticalHold: boolean;
   setTacticalHold: (val: boolean | ((prev: boolean) => boolean)) => void;
   onDisconnect: () => void;
-}) {
+  // Callback so parent can dim the transcript during thinking
+  onThinking?: (thinking: boolean) => void;
+}
+
+const SimulationUI = memo(function SimulationUI({
+  tacticalHold,
+  setTacticalHold,
+  onDisconnect,
+  onThinking,
+}: SimulationUIProps) {
   const { state, audioTrack } = useVoiceAssistant();
   const room = useRoomContext();
 
@@ -48,6 +62,12 @@ const SimulationUI = memo(function SimulationUI({
   const effectiveState: VoiceAssistantState =
     state === "connecting" && (audioTrack || hasAgent) ? "listening" : (state as VoiceAssistantState);
   const isDispatching = effectiveState === "connecting";
+  const isThinking    = effectiveState === "thinking";
+
+  // Notify parent when thinking state changes
+  useEffect(() => {
+    onThinking?.(isThinking && !tacticalHold);
+  }, [isThinking, tacticalHold, onThinking]);
 
   useEffect(() => {
     if (isDispatching) {
@@ -65,20 +85,8 @@ const SimulationUI = memo(function SimulationUI({
     ? Math.min(DISPATCH_PROGRESS_MAX, ((dispatchStep + 1) / DISPATCH_MESSAGES.length) * 100)
     : 100;
 
-  const statusLabel = tacticalHold
-    ? "HOLD // THINK TIME"
-    : isDispatching
-    ? DISPATCH_MESSAGES[dispatchStep]
-    : effectiveState === "listening" ? "LISTENING"
-    : effectiveState === "speaking"  ? "SPEAKING"
-    : effectiveState === "thinking"  ? "THINKING..."
-    : effectiveState === "idle"      ? "STANDBY"
-    : (effectiveState as string).toUpperCase();
-
-  const statusColor = tacticalHold     ? "#d99a4e"
-    : effectiveState === "speaking"    ? "#d99a4e"
-    : effectiveState === "listening"   ? "#d99a4e"
-    : "#1e1e1e";
+  const stateKey = tacticalHold ? "idle" : (effectiveState as string);
+  const stateInfo = STATE_HUMAN[stateKey] ?? { label: stateKey, subtext: "", color: "#1e1e1e" };
 
   return (
     <div className="p-4 bg-[#f4f0e6]">
@@ -87,71 +95,86 @@ const SimulationUI = memo(function SimulationUI({
       {tacticalHold && (
         <div className="mb-3 px-3 py-1.5 bg-[#d99a4e] border-2 border-[#1e1e1e] flex justify-center shadow-[2px_2px_0_0_#1e1e1e]">
           <p className="font-mono text-[10px] font-black uppercase tracking-widest text-[#1e1e1e]">
-            TACTICAL HOLD — MIC MUTED — FORMULATE STRATEGY
+            MIC MUTED — Take your time. They're waiting.
           </p>
         </div>
       )}
 
-      {/* Status label */}
-      <div className="mb-3 flex flex-col items-center gap-2">
-        <div
-          className="font-mono text-lg font-black uppercase tracking-widest text-center"
-          style={{ color: statusColor }}
-          aria-live="polite"
-        >
-          [{statusLabel}]
-        </div>
-
-        {isDispatching && (
-          <p className="font-mono text-[10px] text-[#1e1e1e]/40 tracking-widest uppercase animate-pulse text-center">
-            (Connecting to subject... this should only take a few seconds)
-          </p>
-        )}
-
-        {/* Visualizer / progress */}
-        <div className="w-full max-w-xs">
-          {audioTrack && !tacticalHold && !isDispatching && (
-            <BarVisualizer
-              state={effectiveState}
-              barCount={9}
-              trackRef={audioTrack}
-              className="h-12 w-full text-[#1e1e1e]"
-            />
-          )}
-          {isDispatching && (
-            <div className="flex flex-col items-center gap-1.5 w-full">
-              <div
-                className="w-full h-2 bg-[#1e1e1e]/10 border border-[#1e1e1e]/20"
-                role="progressbar"
-                aria-valuenow={Math.round(dispatchProgress)}
-                aria-valuemin={0}
-                aria-valuemax={100}
-              >
-                <div
-                  className="h-full bg-[#d99a4e] transition-all duration-700"
-                  style={{ width: `${dispatchProgress}%` }}
-                />
+      {/* State display */}
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {/* State dot */}
+          <span
+            className="w-2.5 h-2.5 rounded-full shrink-0"
+            style={{
+              backgroundColor: stateInfo.color,
+              boxShadow: isThinking
+                ? "none"
+                : effectiveState === "listening"
+                ? `0 0 0 0 ${stateInfo.color}40`
+                : "none",
+              animation:
+                effectiveState === "listening" && !tacticalHold
+                  ? "glow-green 1.8s ease-in-out infinite"
+                  : effectiveState === "speaking"
+                  ? "glow-amber 1.2s ease-in-out infinite"
+                  : "none",
+            }}
+            aria-hidden="true"
+          />
+          <div>
+            <div
+              className="font-mono text-sm font-black uppercase tracking-widest"
+              style={{ color: stateInfo.color }}
+              aria-live="polite"
+            >
+              {tacticalHold ? "On hold" : isDispatching ? DISPATCH_MESSAGES[dispatchStep] : stateInfo.label}
+            </div>
+            {stateInfo.subtext && !tacticalHold && !isDispatching && (
+              <div className="font-mono text-[9px] text-[#1e1e1e]/30 tracking-wider mt-0.5">
+                {stateInfo.subtext}
               </div>
-              <span className="font-mono text-[9px] tracking-widest text-[#1e1e1e]/30 uppercase animate-pulse">
-                Securing comms link
-              </span>
-            </div>
-          )}
-          {tacticalHold && (
-            <div className="h-12 flex items-center justify-center">
-              <span className="font-mono text-xs text-[#1e1e1e]/40 tracking-widest">
-                [ COMMS MUTED FOR TACTICAL DELIBERATION ]
-              </span>
-            </div>
-          )}
+            )}
+          </div>
         </div>
+
+        {/* Compact visualizer — only when subject is speaking */}
+        {audioTrack && effectiveState === "speaking" && !tacticalHold && (
+          <BarVisualizer
+            state={effectiveState}
+            barCount={7}
+            trackRef={audioTrack}
+            className="h-8 w-20 text-[#d99a4e]"
+          />
+        )}
       </div>
 
-      {/* Controls — matching lobby button style */}
+      {/* Dispatch progress */}
+      {isDispatching && (
+        <div className="mb-3 flex flex-col gap-1.5">
+          <div
+            className="w-full h-1.5 bg-[#1e1e1e]/10 border border-[#1e1e1e]/15"
+            role="progressbar"
+            aria-valuenow={Math.round(dispatchProgress)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div
+              className="h-full bg-[#d99a4e] transition-all duration-700"
+              style={{ width: `${dispatchProgress}%` }}
+            />
+          </div>
+          <span className="font-mono text-[9px] text-[#1e1e1e]/25 uppercase tracking-widest animate-pulse text-center">
+            Securing comms link...
+          </span>
+        </div>
+      )}
+
+      {/* Controls */}
       <div className="flex items-center justify-center gap-4">
         <button
           onClick={toggleHold}
-          aria-label={tacticalHold ? "Resume communications" : "Tactical hold"}
+          aria-label={tacticalHold ? "Resume communications" : "Tactical hold — mute mic to think"}
           className={`font-mono text-xs font-black px-5 py-2.5 border-2 border-[#1e1e1e] transition-all flex items-center gap-2 shadow-[3px_3px_0_0_#1e1e1e] hover:translate-x-px hover:translate-y-px hover:shadow-[2px_2px_0_0_#1e1e1e] ${
             tacticalHold
               ? "bg-[#22c55e] text-[#1e1e1e] hover:bg-[#16a34a]"

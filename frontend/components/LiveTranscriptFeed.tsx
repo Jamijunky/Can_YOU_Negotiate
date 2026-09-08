@@ -8,8 +8,10 @@ import type { TranscriptItem } from "@/lib/types";
 
 const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
   subjectName,
+  thinking = false,
 }: {
   subjectName: string;
+  thinking?: boolean;
 }) {
   // Primary: LiveKit's own session messages — captures both user + agent transcripts natively
   const { messages } = useSessionMessages();
@@ -124,7 +126,7 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
 
   return (
     <div
-      className="flex flex-col h-full bg-[#f4f0e6]"
+      className={`flex flex-col h-full bg-[#f4f0e6] transition-opacity duration-500 ${thinking ? "opacity-40" : "opacity-100"}`}
       role="log"
       aria-label="Live conversation"
       aria-live="polite"
@@ -177,6 +179,17 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
           })
         )}
         <div ref={bottomRef} />
+        {/* Thinking indicator — inline at the bottom of the conversation */}
+        {thinking && (
+          <div className="flex items-center gap-2 pt-2 animate-in fade-in duration-300">
+            <span className="font-mono text-[10px] font-bold text-[#d99a4e] uppercase tracking-wider">
+              {subjectName}
+            </span>
+            <span className="font-serif text-[13px] text-[#1e1e1e]/40 italic">
+              is thinking...
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

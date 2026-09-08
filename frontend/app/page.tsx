@@ -18,6 +18,7 @@ import EscalationIndicator from "@/components/EscalationIndicator";
 import EmotionalArc from "@/components/EmotionalArc";
 import CoachingHints from "@/components/CoachingHints";
 import ObjectiveDisplay from "@/components/ObjectiveDisplay";
+import ConversationAwareness from "@/components/ConversationAwareness";
 import { LiveKitErrorBoundary } from "@/components/LiveKitErrorBoundary";
 import { ToastProvider, useToast } from "@/components/Toast";
 import { DEFAULT_SCENARIOS, PERSONA_LABELS, getDefaultName } from "@/lib/scenarios";
@@ -119,7 +120,8 @@ function HomeContent() {
   }, [isConnecting, token, persona, difficulty, trainingMode, customAge, customProfession, customMotive, scenarioData, addToast]);
 
   const [tacticalHold, setTacticalHold] = useState(false);
-  const disconnect = useCallback(() => { setToken(null); setTacticalHold(false); }, []);
+  const [isThinking, setIsThinking] = useState(false);
+  const disconnect = useCallback(() => { setToken(null); setTacticalHold(false); setIsThinking(false); }, []);
 
   const currentName = useMemo(() => {
     if (isGeneratingIntel) return "...";
@@ -372,31 +374,51 @@ function HomeContent() {
                 video={false}
                 className="flex-1 min-w-0 flex"
               >
-                {/* ── LEFT: gauges ── */}
-                <div className="w-64 shrink-0 border-r-4 border-[#1e1e1e] flex flex-col bg-[#f4f0e6]">
-                  {/* Stress gauge row */}
-                  <div className="flex items-stretch border-b-2 border-[#1e1e1e]/20">
+                {/* ── LEFT: live conversational awareness + gauges ── */}
+                <div className="w-64 shrink-0 border-r-4 border-[#1e1e1e] flex flex-col bg-[#f4f0e6] overflow-y-auto thin-scroll-light">
+                  {/* Stress gauge + conversational awareness */}
+                  <div className="flex items-stretch">
                     <MissionStatus onReport={setReport} />
                     <div className="flex-1 min-w-0">
                       <LiveKitErrorBoundary>
-                        <IntelDisplay intel={currentIntel} />
+                        <ConversationAwareness
+                          subjectName={currentName}
+                          intel={currentIntel}
+                        />
                       </LiveKitErrorBoundary>
                     </div>
                   </div>
 
+                  {/* How they're responding — reactive bars with human labels */}
                   <LiveKitErrorBoundary><RelationshipDisplay /></LiveKitErrorBoundary>
+
+                  {/* Escalation stage */}
                   <LiveKitErrorBoundary><EscalationIndicator /></LiveKitErrorBoundary>
+
+                  {/* Stress arc */}
                   <LiveKitErrorBoundary><EmotionalArc /></LiveKitErrorBoundary>
-                  <LiveKitErrorBoundary><ObjectiveDisplay /></LiveKitErrorBoundary>
+
+                  {/* Subject Mind — training mode only */}
+                  <LiveKitErrorBoundary>
+                    <ObjectiveDisplay trainingMode={trainingMode} />
+                  </LiveKitErrorBoundary>
+
+                  {/* Coaching hints — training mode only */}
                   {trainingMode && <LiveKitErrorBoundary><CoachingHints /></LiveKitErrorBoundary>}
-                  <LiveKitErrorBoundary><Watchdog onDisconnect={disconnect} isHolding={tacticalHold} /></LiveKitErrorBoundary>
+
+                  <LiveKitErrorBoundary>
+                    <Watchdog onDisconnect={disconnect} isHolding={tacticalHold} />
+                  </LiveKitErrorBoundary>
                 </div>
 
                 {/* ── RIGHT: transcript (dominant) + controls ── */}
                 <div className="flex-1 min-w-0 flex flex-col bg-[#f4f0e6]">
                   <div className="flex-1 overflow-hidden">
                     <LiveKitErrorBoundary>
-                      <LiveTranscriptFeed subjectName={currentName} />
+                      <LiveTranscriptFeed
+                        subjectName={currentName}
+                        thinking={isThinking}
+                      />
                     </LiveKitErrorBoundary>
                   </div>
                   <div className="shrink-0 border-t-2 border-[#1e1e1e]/20">
@@ -406,6 +428,7 @@ function HomeContent() {
                         tacticalHold={tacticalHold}
                         setTacticalHold={setTacticalHold}
                         onDisconnect={disconnect}
+                        onThinking={setIsThinking}
                       />
                     </LiveKitErrorBoundary>
                   </div>
