@@ -216,9 +216,9 @@ export async function POST(req: NextRequest) {
               maxOutputTokens: 600,
             },
           });
-          const geminiResult = await model.generateContent([
-            { role: "user", parts: [{ text: SYSTEM_PROMPT + "\n\n" + userPrompt }] },
-          ]);
+          const geminiResult = await model.generateContent(
+            SYSTEM_PROMPT + "\n\n" + userPrompt
+          );
           let geminiContent = geminiResult.response.text() || "{}";
           geminiContent = geminiContent.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/i, "");
           result = JSON.parse(geminiContent);
