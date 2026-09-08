@@ -102,59 +102,31 @@ def select_speaker(name: str, gender: str, personality: dict = None) -> str:
 
 
 def clean_spoken_text(text: str) -> str:
-    """Strips meta-reasoning, thoughts, brackets, and internal prompt leakage before TTS."""
+    """Strips meta-reasoning, thoughts, and internal prompt leakage before TTS and transcript."""
     if not text:
         return ""
-    # Strip thoughts tag or XML tags if any
+    # Strip thinking tags
     text = re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE)
     text = re.sub(r'<[^>]+>', '', text)
-    # Remove anything inside parentheses or brackets used as stage directions
-    text = re.sub(r'\([^)]*\)', '', text)
-    text = re.sub(r'\[[^\]]*\]', '', text)
-    # Remove asterisk-wrapped actions like *slams fist* or *gasps*
+    # Remove stage directions in asterisks: *sighs*, *slams fist*
     text = re.sub(r'\*[^*]*\*', '', text)
-    # Remove markdown bold/italic
-    text = re.sub(r'[*_]{1,3}', '', text)
-    
-    # Check for double newline delimiter where models often dump meta-analysis after dialogue
+    # Remove double-newline meta-analysis blocks (LLM reasoning after dialogue)
     paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
-    if paragraphs:
+    if len(paragraphs) > 1:
         meta_indicators = (
-            'we have to respond', 'the user said', 'we need to', 'we must', 'let\'s respond',
-            'she might say', 'he might say', 'elena might', 'alex might', 'update stress',
-            'as elena', 'as alex', 'internal state', 'the negotiator', 'respond as'
+            'we have to respond', 'the user said', 'we need to', 'we must',
+            'she might say', 'he might say', 'update stress',
+            'internal state', 'the negotiator', 'respond as'
         )
-        filtered_paras = []
+        filtered = []
         for p in paragraphs:
-            p_lower = p.lower()
-            if any(indicator in p_lower for indicator in meta_indicators):
-                break  # Stop as soon as meta reasoning starts
-            filtered_paras.append(p)
-        text = ' '.join(filtered_paras) if filtered_paras else paragraphs[0]
-
-    bad_starts = (
-        'the user', 'the negotiator', 'i need to', 'i should', 'we need to',
-        'the instruction', 'system:', 'thought:', 'thinking:', 'response:',
-        'as the character', 'i must', 'we must', 'internal state', 'instruction:',
-        'we have to', 'let us', 'let\'s'
-    )
-    lines = text.split('\n')
-    valid_lines = []
-    for l in lines:
-        stripped = l.strip()
-        if not stripped:
-            continue
-        if any(stripped.lower().startswith(b) for b in bad_starts):
-            continue
-        valid_lines.append(stripped)
-    text = ' '.join(valid_lines)
-    # Strip any stray trailing JSON artifacts (e.g., '"]}', '"}', or quotes) if the LLM escaped JSON
+            if any(ind in p.lower() for ind in meta_indicators):
+                break
+            filtered.append(p)
+        text = ' '.join(filtered) if filtered else paragraphs[0]
+    # Strip trailing JSON artifacts
     text = re.sub(r'[\"\']\s*[\}\]]+\s*$', '', text)
     text = re.sub(r'[\"\'\`]+$', '', text)
-    # Collapse multiple consecutive ellipses into one, but preserve ellipses (they convey hesitation)
-    text = re.sub(r'(\.{3,}|…{2,})', '...', text)
-    # Collapse multiple spaced ellipses into one
-    text = re.sub(r'(\.\.\.\s*){2,}', '... ', text)
     return text.strip()
 
 
@@ -286,6 +258,7 @@ class NegotiatorAgent(Agent):
         self._surrendered = False
         self._escalated = False
         self._last_user_text = ""
+        self._last_published_user_text = ""
         # Relationship memory: tracks rapport, trust, compliance, cooperation
         self._relationship = {
             "rapport": 20,
@@ -694,6 +667,14 @@ class NegotiatorAgent(Agent):
             if not transcript:
                 return
             if ev.is_final:
+                # Deduplicate: skip if same or very similar to last published text
+                if hasattr(self, '_last_published_user_text'):
+                    prev = self._last_published_user_text.lower().rstrip('.!?,')
+                    curr = transcript.lower().rstrip('.!?,')
+                    if curr == prev or curr.startswith(prev) or prev.startswith(curr):
+                        logger.info(f"Skipping duplicate user transcript: {transcript}")
+                        return
+                self._last_published_user_text = transcript
                 self._last_user_text = transcript
                 try:
                     if self._room.isconnected and self._room.local_participant:
@@ -718,7 +699,11 @@ class NegotiatorAgent(Agent):
             try:
                 msg = ev.item
                 if msg.role == "assistant" and msg.text_content:
-                    cleaned = clean_spoken_text(msg.text_content)
+                    raw_text = msg.text_content
+                    cleaned = clean_spoken_text(raw_text)
+                    if raw_text != cleaned:
+                        logger.info(f"Agent raw text: {raw_text[:200]}")
+                        logger.info(f"Agent cleaned: {cleaned[:200]}")
                     if cleaned:
                         logger.info(f"Subject speech scheduled: {cleaned}")
                         item_id = str(getattr(msg, 'id', None) or f"agent-{time.time()}")

@@ -34,10 +34,23 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
             second: "2-digit",
           });
           setTranscripts((prev) => {
-            // Merge consecutive user messages within 5s of each other
             const lastItem =
               prev.length > 0 ? prev[prev.length - 1] : null;
+
+            // Deduplicate: skip if same text as last entry within 5s
             const MERGE_WINDOW_MS = 5000;
+            if (
+              lastItem &&
+              now - lastItem.finalizedAt < MERGE_WINDOW_MS
+            ) {
+              const prevNorm = lastItem.text.toLowerCase().replace(/[.!?,]/g, '').trim();
+              const currNorm = data.text.toLowerCase().replace(/[.!?,]/g, '').trim();
+              if (currNorm === prevNorm || prevNorm.includes(currNorm) || currNorm.includes(prevNorm)) {
+                return prev; // skip duplicate
+              }
+            }
+
+            // Merge consecutive short user messages within 5s
             if (
               data.speaker === "user" &&
               lastItem &&
