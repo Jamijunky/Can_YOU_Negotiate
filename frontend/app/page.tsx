@@ -17,6 +17,7 @@ import RelationshipDisplay from "@/components/RelationshipDisplay";
 import EscalationIndicator from "@/components/EscalationIndicator";
 import EmotionalArc from "@/components/EmotionalArc";
 import CoachingHints from "@/components/CoachingHints";
+import { LiveKitErrorBoundary } from "@/components/LiveKitErrorBoundary";
 import { ToastProvider, useToast } from "@/components/Toast";
 import { DEFAULT_SCENARIOS, PERSONA_LABELS, getDefaultName } from "@/lib/scenarios";
 import type { PersonaKey, Difficulty, ScenarioData } from "@/lib/types";
@@ -127,7 +128,7 @@ function HomeContent() {
       const metadataStr = encodeURIComponent(JSON.stringify(metaObj));
       const res = await fetch(`/api/token?room=${roomName}&metadata=${metadataStr}`);
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data.token) {
         setToken(data.token);
       } else {
         addToast("Failed to connect: " + (data.error || "Unknown error"), "error");
@@ -462,22 +463,42 @@ function HomeContent() {
                   audio={true}
                   video={false}
                 >
-                  <IntelDisplay intel={currentIntel} />
-                  <RelationshipDisplay />
-                  <EscalationIndicator />
-                  <EmotionalArc />
-                  {trainingMode && <CoachingHints />}
-                  <Watchdog onDisconnect={disconnect} isHolding={tacticalHold} />
-                  <SimulationUI
-                    subjectName={currentName}
-                    tacticalHold={tacticalHold}
-                    setTacticalHold={setTacticalHold}
-                    onDisconnect={disconnect}
-                  />
-                  <div className="w-full flex justify-center z-10">
-                    <LiveTranscriptFeed subjectName={currentName} />
-                  </div>
-                  <RoomAudioRenderer />
+                  <LiveKitErrorBoundary>
+                    <IntelDisplay intel={currentIntel} />
+                  </LiveKitErrorBoundary>
+                  <LiveKitErrorBoundary>
+                    <RelationshipDisplay />
+                  </LiveKitErrorBoundary>
+                  <LiveKitErrorBoundary>
+                    <EscalationIndicator />
+                  </LiveKitErrorBoundary>
+                  <LiveKitErrorBoundary>
+                    <EmotionalArc />
+                  </LiveKitErrorBoundary>
+                  {trainingMode && (
+                    <LiveKitErrorBoundary>
+                      <CoachingHints />
+                    </LiveKitErrorBoundary>
+                  )}
+                  <LiveKitErrorBoundary>
+                    <Watchdog onDisconnect={disconnect} isHolding={tacticalHold} />
+                  </LiveKitErrorBoundary>
+                  <LiveKitErrorBoundary>
+                    <SimulationUI
+                      subjectName={currentName}
+                      tacticalHold={tacticalHold}
+                      setTacticalHold={setTacticalHold}
+                      onDisconnect={disconnect}
+                    />
+                  </LiveKitErrorBoundary>
+                  <LiveKitErrorBoundary>
+                    <div className="w-full flex justify-center z-10">
+                      <LiveTranscriptFeed subjectName={currentName} />
+                    </div>
+                  </LiveKitErrorBoundary>
+                  <LiveKitErrorBoundary>
+                    <RoomAudioRenderer />
+                  </LiveKitErrorBoundary>
                 </LiveKitRoom>
               </div>
             </div>
