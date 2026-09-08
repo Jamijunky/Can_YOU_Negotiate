@@ -134,7 +134,7 @@ const FALLBACK_SCENARIOS = [
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX = 10;
+const RATE_LIMIT_MAX = 30;
 
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
@@ -150,9 +150,7 @@ function checkRateLimit(ip: string): boolean {
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
-  if (!checkRateLimit(ip)) {
-    return NextResponse.json({ error: "Rate limit exceeded." }, { status: 429 });
-  }
+  const rateLimited = !checkRateLimit(ip);
 
   try {
     const body = await req.json();
@@ -166,6 +164,13 @@ export async function POST(req: NextRequest) {
     }
 
     const { persona, difficulty, customMotive } = parsed.data;
+
+    // If rate-limited, skip Groq and use fallback immediately
+    if (rateLimited) {
+      console.warn("Rate limited, using fallback scenario");
+      const fallback = FALLBACK_SCENARIOS[Math.floor(Math.random() * FALLBACK_SCENARIOS.length)];
+      return NextResponse.json(fallback);
+    }
 
     const randomSeed = Math.floor(Math.random() * 1000000);
     let userPrompt = `Generate a highly unique scenario for the base persona: ${persona}. Difficulty: ${difficulty}. Random Seed (to force variety): ${randomSeed}.`;
