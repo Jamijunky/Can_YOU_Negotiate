@@ -102,6 +102,7 @@ function HomeContent() {
   }, [customMotive, persona]);
 
   const connect = useCallback(async () => {
+    if (isConnecting || token) return;
     try {
       setIsConnecting(true);
 
@@ -138,6 +139,8 @@ function HomeContent() {
       setIsConnecting(false);
     }
   }, [
+    isConnecting,
+    token,
     persona,
     difficulty,
     trainingMode,
@@ -454,7 +457,7 @@ function HomeContent() {
                 <LiveKitRoom
                   serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
                   token={token}
-                  connect={true}
+                  connect={!!token}
                   onDisconnected={disconnect}
                   audio={true}
                   video={false}
