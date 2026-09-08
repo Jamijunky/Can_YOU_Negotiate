@@ -1,34 +1,25 @@
 # Can You Negotiate?
 
-A real-time, voice-first crisis negotiation simulator built for the DataForge x Rime Hackathon.
+A real-time, voice-first crisis negotiation simulator built for the **DataForge x Rime Hackathon**.
 
-Instead of typing back and forth with a bot, you pick up a live line with a cornered, panicked subject and have to de-escalate them using only your voice. 
+Pick up a live line with a cornered, panicked subject. De-escalate them using only your voice. If you listen, they surrender. If you bluff, they escalate. Every word matters.
 
----
-
-## Links
-
-- **Live Web App**: [https://can-you-negotiate.vercel.app](https://can-you-negotiate.vercel.app)
-- **GitHub**: [https://github.com/Jamijunky/Can_YOU_Negotiate](https://github.com/Jamijunky/Can_YOU_Negotiate)
-- **Deliverables & Breakdown**: [DELIVERABLES.md](./DELIVERABLES.md)
-- **Latency Benchmarks & Voice Test Notes**: [RIME_EVIDENCE.md](./RIME_EVIDENCE.md)
+**Live Demo**: [can-you-negotiate.vercel.app](https://can-you-negotiate.vercel.app)
 
 ---
 
-## Why Voice (and why text doesn't work here)
+## Why Voice
 
-Standard text chatbots can't simulate negotiation. In real crises, what matters is tone, hesitation, panic, and above all, the ability to cut someone off before they do something stupid.
+Standard text chatbots cannot simulate negotiation. In real crises, tone, hesitation, panic, and the ability to cut someone off are what matter. This product is **impossible without voice**:
 
-We built this simulator to solve three practical voice engineering problems:
-
-1. **True mid-sentence barge-in**: When the subject starts spiraling into a frantic monologue, you can talk right over them. The audio cuts out in ~250ms, and more importantly, the AI forgets the rest of the sentence it never got to say and reacts to being interrupted.
-2. **Distinct acoustic personalities via Rime Mist v3**: A terrified 22-year-old thief sounds totally different from an aggressive white-collar fraudster. We map character archetype and gender to specific Rime voices (`marley`, `marsh`, `colin`, `amber`, etc.) so the pitch, breathiness, and emotional strain fit the story.
-3. **No text spoilers & no broken bubbles**: The transcript doesn't dump the whole paragraph the second the AI starts thinking. Words stream at a natural speaking rate (~2.8 words/sec). When the user pauses for a couple seconds to think, their words stay together in one turn bubble instead of splintering into separate cards.
-4. **Tactical Hold**: Negotiators need a second to check their notes or confer with a partner. Hit `[ TACTICAL HOLD ]` to mute the mic and pause watchdog timeouts without dropping the call.
+- **True mid-sentence barge-in**: Interrupt the subject mid-sentence. Audio stops in ~250ms, the AI discards unsaid words, and reacts to being interrupted.
+- **Emotional vocal delivery via Rime Mist v3**: A terrified thief sounds different from an aggressive fraudster. Voice is mapped to character personality.
+- **No text spoilers**: Words stream at natural speaking rate (~2.8 words/sec). The transcript matches what you hear, not what the AI planned to say.
+- **Full-duplex**: The subject can speak while you speak. No push-to-talk, no turn-taking awkwardness.
 
 ---
 
-## How It Works
+## Architecture
 
 ```
 Browser (Next.js 16 + LiveKit Audio)
@@ -37,39 +28,62 @@ Browser (Next.js 16 + LiveKit Audio)
 LiveKit Cloud
    │
    ▼  Real-time session
-Python Agent (LiveKit Agents framework)
-   ├─ VAD: Silero (detects barge-in within 300ms)
-   ├─ STT: Whisper-large-v3-turbo on Groq (<150ms)
-   ├─ LLM: GPT-OSS-120B on Groq
-   ├─ TTS: Rime Mist v3 via WebSocket
-   └─ Memory: Prunes unspoken speech on interrupt + tracks stress (1-100)
+Python Agent (LiveKit Agents 1.7.1)
+   ├─ VAD: Silero (barge-in detection ~300ms)
+   ├─ STT: Deepgram Nova-3 (streaming, Smart Format)
+   ├─ LLM: Qwen 3.8-27B on Groq (temp 0.82, 400 tokens)
+   ├─ TTS: Rime Mist v3 (WebSocket, reduce_latency=True)
+   └─ State: Stress meter (1-100), relationship tracking, escalation chain
 ```
 
 ---
 
-## Rime Voice Setup
+## Rime Integration
 
-We use `livekit-plugins-rime` with model `mistv3` over WebSocket streaming. 
+| Parameter | Value |
+|-----------|-------|
+| Model | `mistv3` |
+| Transport | WebSocket (`use_websocket=True`) |
+| Latency Mode | `reduce_latency=True` |
+| Speed Alpha | `1.05` |
 
-| Persona & Archetype | Gender | Voice Used | Why |
-| :--- | :--- | :--- | :--- |
-| Cornered Thief (Panicked / Desperate) | Female | `marley` | High breathiness, vocal exhaustion, erratic rhythm |
-| Cornered Thief (Panicked / Desperate) | Male | `marsh` | Panicky pitch shifts, unstable delivery |
-| Scammed Investor (Aggressive / Paranoid) | Male | `colin` | Tense, defensive, fast staccato attack |
-| Scammed Investor (Aggressive / Paranoid) | Female | `amber` | Sharp, suspicious, agitated pitch |
-| Embezzler / Founder (Calculating / Erratic) | Male | `trent` | Cold composure that cracks under direct questioning |
-| Embezzler / Founder (Calculating / Erratic) | Female | `reese` | Guarded, defensive, evasive pacing |
+### Voice-to-Character Mapping
+
+| Persona | Gender | Voice | Why |
+|---------|--------|-------|-----|
+| Cornered Thief (Panicked) | Female | `marley` | High breathiness, vocal exhaustion |
+| Cornered Thief (Panicked) | Male | `marsh` | Panicky pitch shifts |
+| Scammed Investor (Aggressive) | Male | `colin` | Fast staccato, tense delivery |
+| Scammed Investor (Aggressive) | Female | `amber` | Sharp, agitated pitch |
+| Embezzler (Calculating) | Male | `trent` | Cold composure that cracks |
+| Embezzler (Calculating) | Female | `reese` | Guarded, evasive pacing |
 
 ---
 
-## Running It Locally
+## Hard Voice Problem: Full-Duplex Interruption
+
+**The challenge**: When the negotiator interrupts a spiraling subject, the system must stop Rime audio, discard unsaid words, and have the AI react to being interrupted — all within 500ms.
+
+**Our solution**:
+1. Silero VAD detects user speech onset (~300ms)
+2. LiveKit interrupts the Rime audio stream (~250ms)
+3. Agent receives interrupt signal, discards unsaid LLM output
+4. Agent's next response acknowledges the interruption
+5. Transcript shows only what was actually spoken
+
+**Acceptance test and results**: See [RIME_EVIDENCE.md](./RIME_EVIDENCE.md)
+
+---
+
+## Setup
 
 ### Prerequisites
 - Python 3.10+
 - Node.js 18+
-- LiveKit Cloud account
+- LiveKit Cloud account (free tier works)
 - Rime API key
 - Groq API key
+- Deepgram API key
 
 ### 1. Backend
 ```bash
@@ -78,29 +92,100 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-```
-Fill in `backend/.env` with your `LIVEKIT_*`, `GROQ_API_KEY`, and `RIME_API_KEY`. Then start the agent:
-```bash
+# Edit .env with your API keys
 python agent.py dev
 ```
 
 ### 2. Frontend
-In another terminal:
 ```bash
 cd frontend
 npm install
 cp .env.example .env.local
-```
-Fill in `frontend/.env.local` with your `NEXT_PUBLIC_LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, and `GROQ_API_KEY`.
-```bash
+# Edit .env.local with your API keys
 npm run dev
 ```
-Open `http://localhost:3000` in Chrome, click connect, and speak into your mic.
+
+Open [http://localhost:3000](http://localhost:3000), click Connect, and speak into your mic.
+
+### Environment Variables
+
+**Backend** (`backend/.env`):
+```
+LIVEKIT_URL=wss://your-domain.livekit.cloud
+LIVEKIT_API_KEY=your_key
+LIVEKIT_API_SECRET=your_secret
+GROQ_API_KEY=your_groq_key
+RIME_API_KEY=your_rime_key
+```
+
+**Frontend** (`frontend/.env.local`):
+```
+NEXT_PUBLIC_LIVEKIT_URL=wss://your-domain.livekit.cloud
+LIVEKIT_API_KEY=your_key
+LIVEKIT_API_SECRET=your_secret
+GROQ_API_KEY=your_groq_key
+```
 
 ---
 
-## What to Try When Testing
+## Third-Party Services
 
-1. **Cut the subject off**: When they start rambling, firmly say *"Stop talking and listen to me!"* Notice how the Rime voice immediately cuts off, the comms log chops off at the exact word spoken, and they push back on being interrupted.
-2. **Use Tactical Hold**: Click the `[ TACTICAL HOLD // THINK TIME ]` button. Your mic mutes and the room won't time out while you plan your next move.
-3. **Surrender or Fail**: If you listen and de-escalate, their stress drops below 20 and they surrender. If you bluff or dismiss them, stress hits 100 and the call fails. Either way, you get a full post-action debrief card grading your negotiation.
+| Service | Purpose | Pricing |
+|---------|---------|---------|
+| [LiveKit Cloud](https://livekit.io) | WebRTC transport, room management | Free tier (50 min/mo) |
+| [Rime AI](https://rime.ai) | Text-to-speech (mistv3) | Hackathon credits |
+| [Groq](https://groq.com) | LLM inference (Qwen 3.8-27B) | Free tier |
+| [Deepgram](https://deepgram.com) | Speech-to-text (Nova-3) | Free tier |
+| [Vercel](https://vercel.com) | Frontend hosting | Free tier |
+| [Render](https://render.com) | Backend hosting | Free tier |
+
+---
+
+## Known Limitations
+
+1. **Free tier CPU**: Render free tier can cause Silero VAD overload after ~2 minutes of continuous use. Production would use a paid tier.
+2. **English only**: Rime supports multilingual but we focused on English for scope.
+3. **Transcript delay**: Deepgram final transcriptions have ~0.5s latency before appearing.
+4. **Single session**: Each connection creates a new room. No session persistence across page reloads.
+
+---
+
+## Project Structure
+
+```
+├── backend/
+│   ├── agent.py              # LiveKit agent with negotiation logic
+│   ├── requirements.txt      # Python dependencies
+│   └── .env.example          # Backend environment template
+├── frontend/
+│   ├── app/
+│   │   ├── page.tsx          # Main page with LiveKit connection
+│   │   ├── error.tsx         # Error boundary
+│   │   └── api/
+│   │       ├── token/route.ts    # LiveKit token endpoint
+│   │       └── scenario/route.ts # AI scenario generation
+│   ├── components/
+│   │   ├── LiveTranscriptFeed.tsx  # Live transcript display
+│   │   ├── MissionStatus.tsx       # Stress meter + surrender/escalation
+│   │   ├── SimulationUI.tsx        # Connection UI + controls
+│   │   ├── IntelDisplay.tsx        # Scenario intelligence display
+│   │   ├── EmotionalArc.tsx        # Stress history graph
+│   │   ├── EscalationIndicator.tsx # Escalation stage display
+│   │   ├── RelationshipDisplay.tsx # Rapport/trust metrics
+│   │   ├── CoachingHints.tsx       # Training mode hints
+│   │   └── LiveKitErrorBoundary.tsx # Component error isolation
+│   ├── lib/
+│   │   ├── types.ts          # TypeScript type definitions
+│   │   ├── constants.ts      # Configuration constants
+│   │   └── scenarios.ts      # 21 persona scenarios with OCEAN scores
+│   └── .env.example          # Frontend environment template
+├── render.yaml               # Render deployment config
+├── RIME_EVIDENCE.md          # Hackathon evidence document
+└── README.md                 # This file
+```
+
+---
+
+## License
+
+Built for the DataForge x Rime Hackathon 2026.

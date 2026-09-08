@@ -1,46 +1,127 @@
-# Rime Voice Evidence & Acceptance Tests
+# RIME_EVIDENCE.md
 
-## Why Voice Matters Here
+## Hard Voice Claim
 
-Text chatbots don't work for crisis negotiation. The whole dynamic hinges on pacing, pauses, emotional crack in the voice, and whether you can interrupt someone before they pull a trigger. 
+**Removing speech from this product destroys it.** Crisis negotiation is fundamentally a voice-first, full-duplex interaction. The entire simulation depends on:
 
-We used Rime's `mistv3` voice model connected to LiveKit's WebRTC agent pipeline to test full-duplex conversational voice with sub-second interruption and realistic character acting.
+- Real-time interruption (barge-in) where the negotiator cuts off a spiraling subject
+- Emotional vocal delivery that conveys panic, desperation, and escalation
+- Natural pacing with pauses, stammers, and breathless speech
+- No text spoilers — words must stream at speaking rate, not dump as a paragraph
 
----
-
-## Latency Numbers (Measured Live)
-
-| Step | What We Used | Observed Latency |
-| :--- | :--- | :--- |
-| **Barge-in detection (VAD)** | Silero VAD (0.3s speech threshold) | ~300ms |
-| **WebRTC audio roundtrip** | LiveKit Cloud | ~40 - 65ms |
-| **STT transcription** | Whisper Large v3 Turbo on Groq | ~120 - 160ms |
-| **LLM response generation** | GPT-OSS-120B on Groq | ~500 - 620ms |
-| **TTS first audio chunk (TTFB)** | Rime Mist v3 (WebSocket) | ~220 - 280ms |
-| **Total time from user speech to subject audio stopping** | Silero VAD + LiveKit buffer flush | **~250 - 350ms** |
+A text-based version would be a chatbot with a play button. The voice *is* the product.
 
 ---
 
-## Acceptance Tests
+## Voice-Specific Challenge Solved
 
-### 1. The Mid-Sentence Interruption Test
-- **Setup**: Start a call with Maria (The Cornered Thief).
-- **Behavior**: She starts ranting immediately: *"I don't know what to do! Everything is falling apart... I didn't want to hurt anybody, but the alarm went off and now there are sirens everywhere! Don't you dare come in here!"*
-- **Action**: Around word 6 or 7, speak loudly: *"Maria, hold on! Stop and take a deep breath."*
-- **Expected Outcome**:
-  - Rime audio stops playing in under 350ms.
-  - The transcript box cuts off with `...` right around where she stopped talking, instead of showing the rest of the monologue.
-  - Her internal chat context replaces the unsaid words with a note that she got cut off.
-  - Her next response reacts directly to being interrupted (*"Don't tell me to breathe! You don't know what's happening!"*).
+**Full-duplex interruption and recovery under emotional load.**
 
-### 2. Voice Persona Mapping
-We tested different Rime voices to find which ones actually sound distressed or defensive rather than robotic:
-- **`marley`**: Best female voice for panicked/frantic delivery. High breathiness and natural pauses.
-- **`marsh`**: Best male voice for someone on the verge of tears or spiraling out of control.
-- **`colin`**: Fast, aggressive attack. Works well for hostile, suspicious characters.
-- **`amber`**: Sharp and agitated tone.
-- **`trent` / `reese`**: Lower-energy, defensive pacing for calculating or cornered corporate characters.
+We built a crisis negotiation simulator where an AI subject (played by Rime TTS) can be interrupted mid-sentence by the user. The system must:
 
-### 3. Progressive Transcript Playout
-- **Problem observed during testing**: Dumping the entire 35-word LLM reply into the UI comms log immediately spoiled the line before the voice had even uttered the first two words. If the user interrupted, the chat log made no sense.
-- **Fix**: Words now stream to the UI in chunks of 3 at ~2.8 words/second, matching speech pacing. If you cut the subject off, what's on screen matches what you actually heard.
+1. Detect the user's barge-in within 300ms (Silero VAD)
+2. Stop Rime audio playback immediately (~250ms)
+3. Discard the unsaid portion of the subject's response
+4. Have the AI react to being interrupted in its next turn
+5. Keep the transcript consistent with what was actually spoken
+
+This is a realistic, high-stakes voice interaction — not a chatbot with a microphone.
+
+---
+
+## Acceptance Test: Mid-Sentence Interruption
+
+### Setup
+- **Rime Model**: `mistv3`
+- **Rime Speaker**: `marley` (female, panicked persona)
+- **Transport**: WebSocket (`use_websocket=True`)
+- **Latency Mode**: `reduce_latency=True`
+- **STT**: Deepgram Nova-3 (streaming, with Smart Format + punctuation)
+- **LLM**: Qwen 3.8-27B on Groq (temperature 0.82, max 400 tokens)
+- **VAD**: Silero (0.3s speech threshold)
+- **Transport**: LiveKit Cloud WebRTC
+
+### Procedure
+1. Connect to the simulator and select "The Cornered Thief" (Maria) scenario
+2. The subject begins speaking immediately: *"I don't know what to do! Everything is falling apart... I didn't want to hurt anybody, but the alarm went off and now there are sirens everywhere! Don't you dare come in here!"*
+3. Around word 6-7, speak firmly: **"Maria, hold on! Stop and take a deep breath."**
+4. Observe the following within 500ms:
+
+### Expected Results
+| Metric | Target | Measured |
+|--------|--------|----------|
+| VAD detection of user barge-in | < 300ms | ~300ms |
+| Rime audio stop (silence) | < 350ms | ~250-350ms |
+| Transcript cutoff consistency | Matches audio | ✓ Transcript shows `...` at cutoff point |
+| AI context discard | Unspoken words removed | ✓ Agent receives interrupt signal, discards unsaid text |
+| Next AI response | Reacts to interruption | ✓ Subject pushes back: *"Don't tell me to breathe!"* |
+
+### Result
+**PASS.** The subject's Rime audio cuts off promptly when the negotiator interrupts. The transcript reflects only what was spoken. The AI's next response acknowledges the interruption naturally. The negotiation continues without requiring a restart.
+
+---
+
+## Voice Persona Mapping
+
+Rime `mistv3` voices are mapped to character archetypes based on vocal characteristics:
+
+| Persona | Gender | Voice | Rationale |
+|---------|--------|-------|-----------|
+| Cornered Thief (Panicked) | Female | `marley` | High breathiness, vocal exhaustion, erratic rhythm |
+| Cornered Thief (Panicked) | Male | `marsh` | Panicky pitch shifts, unstable delivery |
+| Scammed Investor (Aggressive) | Male | `colin` | Fast staccato attack, tense delivery |
+| Scammed Investor (Aggressive) | Female | `amber` | Sharp, suspicious, agitated pitch |
+| Embezzler (Calculating) | Male | `trent` | Cold composure that cracks under pressure |
+| Embezzler (Calculating) | Female | `reese` | Guarded, defensive, evasive pacing |
+
+---
+
+## Stress Case: Agent Disconnect During Active Negotiation
+
+### Setup
+- Begin a negotiation session
+- Subject is at Stage 2 (Hostile), stress at 70%
+
+### Procedure
+1. Kill the backend agent process mid-conversation
+2. Observe frontend behavior
+
+### Expected Results
+- Frontend shows connection error with retry option
+- Retry resets to home page (fresh session)
+- No orphaned audio or zombie connections
+
+### Result
+**PASS.** The error boundary catches the disconnect, displays a clear error message, and the retry button redirects to home for a clean restart.
+
+---
+
+## Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| **Rime Model** | `mistv3` |
+| **Rime Transport** | WebSocket (`use_websocket=True`) |
+| **Rime Latency Mode** | `reduce_latency=True` |
+| **Rime Speed Alpha** | `1.05` |
+| **STT Model** | Deepgram `nova-3` |
+| **STT Language** | `en-US` |
+| **STT Smart Format** | `True` |
+| **STT Punctuate** | `True` |
+| **LLM Provider** | Groq |
+| **LLM Model** | `qwen/qwen3.8-27b` |
+| **LLM Temperature** | `0.82` |
+| **LLM Max Tokens** | `400` |
+| **VAD** | Silero (0.3s threshold) |
+| **Transport** | LiveKit Cloud WebRTC |
+| **TTS Text Transforms** | `filter_markdown`, `filter_emoji`, `filter_inner_thoughts` |
+
+---
+
+## Limitations
+
+1. **Rime WebSocket cold start**: First TTS request after idle may have +200ms latency due to connection establishment. Subsequent requests are fast.
+2. **VAD sensitivity**: Very quiet speech may not trigger VAD, causing the subject to keep talking. The negotiator can use Tactical Hold to pause.
+3. **Free tier constraints**: Render free tier has CPU limitations that can cause VAD overload after ~2 minutes of continuous conversation. Production deployment would use a paid tier.
+4. **Single-language**: Currently English only. Rime supports multilingual models but we focused on English for the hackathon scope.
+5. **Transcript is final-only**: Deepgram intermediate transcriptions are not shown (they were unreliable). There's a ~0.5s delay before user text appears in the transcript.
