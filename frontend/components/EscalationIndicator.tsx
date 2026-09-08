@@ -38,12 +38,7 @@ const EscalationIndicator = memo(function EscalationIndicator() {
 
   return (
     <div className="w-full bg-[#1e1e1e] border border-[#f4f0e6]/20 p-3 text-left" role="region" aria-label="Escalation stage">
-      <div className="font-mono text-[10px] font-bold tracking-widest text-[#d99a4e] uppercase mb-2 flex items-center gap-1.5">
-        <span
-          className="w-1.5 h-1.5 rounded-full animate-pulse"
-          style={{ backgroundColor: stageInfo.color }}
-          aria-hidden="true"
-        />
+      <div className="font-mono text-[10px] font-bold tracking-widest text-[#d99a4e] uppercase mb-2">
         ESCALATION_CHAIN
       </div>
 
