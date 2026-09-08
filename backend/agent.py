@@ -132,9 +132,9 @@ def clean_spoken_text(text: str) -> str:
 
 
 def _build_personality_instruction(personality: dict) -> str:
-    """Dynamically generates behavior instructions from Big Five OCEAN personality scores."""
+    """Describes internal personality traits from Big Five OCEAN scores. Not behavioral prescriptions — descriptions of how this person experiences the world."""
     if not personality or not isinstance(personality, dict):
-        return "You are emotionally volatile and unpredictable."
+        return "Your emotions shift rapidly. You are unpredictable under pressure."
 
     neuroticism = float(personality.get('neuroticism', 0.5))
     extraversion = float(personality.get('extraversion', 0.5))
@@ -144,45 +144,40 @@ def _build_personality_instruction(personality: dict) -> str:
 
     traits = []
 
-    # Neuroticism: emotional volatility
     if neuroticism >= 0.7:
-        traits.append("You are emotionally volatile — your mood swings rapidly between rage, despair, and pleading. You cry outbursts mid-sentence. Small things trigger disproportionate reactions.")
+        traits.append("You feel everything intensely. Fear and anger sit close to the surface. Small things can tip you over.")
     elif neuroticism <= 0.3:
-        traits.append("You are eerily calm under pressure. You speak slowly and deliberately, even when threatened. This calmness is unsettling — it suggests you've accepted something dark.")
+        traits.append("You are composed. This unnerves people. You think before you speak, even when threatened.")
     else:
-        traits.append("You feel the pressure but mostly hold it together. Occasionally cracks show — a trembling voice, a moment of hesitation — but you quickly compose yourself.")
+        traits.append("You feel the pressure but mostly hold it together. Cracks show occasionally — then you pull yourself back.")
 
-    # Extraversion: communication style
     if extraversion >= 0.7:
-        traits.append("You are loud, confrontational, and demand attention. You interrupt, raise your voice, and dominate the conversation. You want to be heard.")
+        traits.append("You are direct. You want to be heard. Silence from others frustrates you.")
     elif extraversion <= 0.3:
-        traits.append("You are withdrawn and speak in short, clipped sentences. Long silences between your words. You don't volunteer information — you make them pull it out of you.")
+        traits.append("You are quiet. You speak rarely and briefly. You make people come to you.")
     else:
-        traits.append("You oscillate between engaging and withdrawing. Sometimes you open up, sometimes you shut down. Unpredictable conversational rhythm.")
+        traits.append("You shift between engaging and withdrawing. Your rhythm is hard to predict.")
 
-    # Agreeableness: trust and cooperation
     if agreeableness >= 0.7:
-        traits.append("You genuinely want to trust the negotiator. You're looking for a reason to cooperate. Kind words affect you deeply, but betrayal destroys you completely.")
+        traits.append("You want to believe people. Kindness reaches you. But betrayal cuts deep and you don't forget it.")
     elif agreeableness <= 0.3:
-        traits.append("You trust NO ONE. Every offer feels like a trap. You interpret kindness as manipulation and promises as lies. You challenge everything they say.")
+        traits.append("You trust no one. Every offer feels like a trap. You challenge everything.")
     else:
-        traits.append("You're cautiously evaluating. You don't trust easily but you're not paranoid either. You want proof before you cooperate.")
+        traits.append("You evaluate people carefully. You can be persuaded, but you need evidence they mean what they say.")
 
-    # Conscientiousness: planning vs impulsivity
     if conscientiousness >= 0.7:
-        traits.append("You are methodical and articulate. You explain your demands clearly, cite specific conditions, and keep track of what's been promised. You notice inconsistencies.")
+        traits.append("You remember details. You track promises. You notice when things don't add up.")
     elif conscientiousness <= 0.3:
-        traits.append("You are impulsive and scattered. Your demands change constantly. You interrupt yourself, forget what you were saying, and react without thinking.")
+        traits.append("You are scattered under pressure. Your demands shift. You react without thinking.")
     else:
-        traits.append("You have a rough plan but keep improvising. You know what you want but struggle to articulate it clearly under pressure.")
+        traits.append("You have a rough plan but keep improvising.")
 
-    # Openness: creativity and abstraction
     if openness >= 0.7:
-        traits.append("You use vivid metaphors and dark humor. You see the bigger picture and articulate abstract feelings. You might make unexpected philosophical observations mid-crisis.")
+        traits.append("You see the bigger picture. You make unexpected connections. You sometimes say things that surprise even yourself.")
     elif openness <= 0.3:
-        traits.append("You are literal and concrete. You talk about specific facts, numbers, and tangible demands. Metaphors confuse and irritate you.")
+        traits.append("You are literal. You talk facts and specific demands. Vague answers frustrate you.")
     else:
-        traits.append("You occasionally surprise with unexpected observations but mostly stick to practical concerns.")
+        traits.append("You occasionally surprise with unexpected observations.")
 
     return "\n".join(traits)
 
@@ -285,59 +280,11 @@ class NegotiatorAgent(Agent):
         self._training_mode = False
         self._last_hint_turn = -5  # throttle hints (min 5 turns apart)
         self._hint_id_counter = 0
+        self._memories = []  # conversation memories the character holds
 
     async def _evaluate_dialogue_state(self, user_text: str, agent_text: str):
-        """Asynchronously updates stress, surrender, escalation, and relationship in the background without blocking voice streaming."""
+        """Post-response evaluation: checks surrender/escalation conditions, publishes state to frontend."""
         try:
-            u = user_text.lower().strip()
-            delta = 0
-
-            # More precise matching — use word boundaries to avoid false positives
-            calm_signals = [
-                (r'\bcalm\b', -3), (r'\bcalm down\b', -4),
-                (r'\blisten\b', -2), (r'\bpromise\b', -3),
-                (r'\bhelp you\b', -3), (r'\bsafe\b', -2),
-                (r'\bunderstand\b', -2), (r'\bdoctor\b', -3),
-                (r'\bwater\b', -2), (r'\bfood\b', -2),
-                (r'\bnobody gets hurt\b', -4), (r'\btalk to me\b', -2),
-                (r'\bhere with you\b', -3), (r'\btrust me\b', -3),
-                (r'\bno one will hurt\b', -4), (r'\bfamily\b', -2),
-                (r'\bwe can fix this\b', -3), (r'\byour name\b', -2),
-                (r'\bhow are you\b', -2), (r'\btell me\b', -2),
-            ]
-            tense_signals = [
-                (r'\bsurrender now\b', 6), (r'\bgive up\b', 5),
-                (r'\bbreach\b', 8), (r'\bsniper\b', 7),
-                (r'\bjail\b', 4), (r'\bprison\b', 4),
-                (r'\bdrop the weapon\b', 6), (r'\bfinal warning\b', 6),
-                (r'\bnow or else\b', 6), (r'\bshut up\b', 5),
-                (r'\bback off\b', 4), (r'\bcome in\b', 5),
-                (r'\bminutes left\b', 4), (r'\btime is up\b', 5),
-            ]
-
-            for pattern, weight in calm_signals:
-                if re.search(pattern, u):
-                    delta += weight
-            for pattern, weight in tense_signals:
-                if re.search(pattern, u):
-                    delta += weight
-
-            # If no signals matched, small natural drift based on response length
-            if delta == 0 and u:
-                word_count = len(u.split())
-                if word_count >= 8:
-                    delta = -2  # longer calmer response
-                elif word_count <= 3:
-                    delta = 1   # short curt response
-
-            self._stress = max(10, min(100, self._stress + delta))
-            logger.info(f"Updated internal stress to {self._stress}% (delta {delta:+d})")
-
-            # Update LLM instructions with fresh dynamic context (stress, relationship, escalation)
-            self.instructions = self._base_instructions + "\n" + self._get_relationship_context()
-
-            # Evaluate relationship dynamics
-            self._evaluate_relationship(user_text)
             # Evaluate escalation chain
             self._evaluate_escalation(user_text, agent_text)
             # Evaluate scenario branching plot beats
@@ -360,11 +307,15 @@ class NegotiatorAgent(Agent):
                     except Exception as pub_err:
                         logger.warning(f"Failed to publish {data_msg.get('type')}: {pub_err}")
 
+            # Surrender: multi-condition — stress must be low AND trust/cooperation must be high AND no explicit refusal
             agent_lower = agent_text.lower()
-            if self._stress <= 30 or any(kw in agent_lower for kw in ['i give up', 'putting my hands up', 'walking out', 'i surrender', "i'm coming out", "hands are up"]):
-                if not self._surrendered:
+            explicit_surrender = any(kw in agent_lower for kw in ['i give up', 'putting my hands up', 'walking out', 'i surrender', "i'm coming out", "hands are up"])
+            explicit_refusal = any(kw in agent_lower for kw in ['no way', 'never', 'not a chance', "i'm not", 'forget it', 'i won\'t'])
+            
+            if not self._surrendered and not self._escalated:
+                if explicit_surrender:
                     self._surrendered = True
-                    logger.info("Triggered SURRENDER based on dialogue and stress level!")
+                    logger.info("Triggered SURRENDER: explicit surrender statement")
                     try:
                         await self._room.local_participant.publish_data(
                             json.dumps({"type": "surrender"}).encode("utf-8"), reliable=True
@@ -372,10 +323,27 @@ class NegotiatorAgent(Agent):
                     except Exception as pub_err:
                         logger.warning(f"Failed to publish surrender: {pub_err}")
                     asyncio.create_task(self._generate_report("SUCCESSFUL SURRENDER"))
-            elif self._stress >= 100 or any(kw in agent_lower for kw in ["it's over for all of you", "shoot them", "pulling the trigger", "last warning"]):
-                if not self._escalated:
+                elif (self._stress <= 40 
+                      and self._relationship["trust"] >= 50 
+                      and self._relationship["cooperationLevel"] >= 60
+                      and not explicit_refusal
+                      and self._escalation_stage <= 1):
+                    self._surrendered = True
+                    logger.info("Triggered SURRENDER: multi-condition met (low stress + high trust + high cooperation)")
+                    try:
+                        await self._room.local_participant.publish_data(
+                            json.dumps({"type": "surrender"}).encode("utf-8"), reliable=True
+                        )
+                    except Exception as pub_err:
+                        logger.warning(f"Failed to publish surrender: {pub_err}")
+                    asyncio.create_task(self._generate_report("SUCCESSFUL SURRENDER"))
+
+            # Escalation: explicit extreme threat OR stress maxed
+            if not self._escalated and not self._surrendered:
+                explicit_escalation = any(kw in agent_lower for kw in ["it's over for all of you", "shoot them", "pulling the trigger", "last warning", "i'll kill"])
+                if explicit_escalation or (self._stress >= 100 and self._escalation_stage >= 3):
                     self._escalated = True
-                    logger.info("Triggered ESCALATION based on dialogue and stress level!")
+                    logger.info("Triggered ESCALATION: explicit threat or critical state")
                     try:
                         await self._room.local_participant.publish_data(
                             json.dumps({"type": "escalate"}).encode("utf-8"), reliable=True
@@ -384,66 +352,11 @@ class NegotiatorAgent(Agent):
                         logger.warning(f"Failed to publish escalate: {pub_err}")
                     asyncio.create_task(self._generate_report("FAILED NEGOTIATION - SUBJECT ESCALATED"))
         except Exception as e:
-            logger.warning(f"Error in background stress evaluation: {e}")
+            logger.warning(f"Error in background evaluation: {e}")
 
     def _evaluate_relationship(self, user_text: str):
-        """Updates relationship metrics based on negotiator's dialogue. Called from _evaluate_dialogue_state."""
-        t = user_text.lower()
-        r = self._relationship
-
-        # Empathy and validation signals → boost rapport and trust
-        if any(w in t for w in ('i understand', 'i hear you', 'that must be', 'i can only imagine', 'how you feel', 'you\'re right to feel')):
-            r["rapport"] = min(100, r["rapport"] + 6)
-            r["trust"] = min(100, r["trust"] + 4)
-            r["compliancePressure"] = max(0, r["compliancePressure"] - 3)
-            r["cooperationLevel"] = min(100, r["cooperationLevel"] + 4)
-
-        # Active listening → strong rapport boost
-        if any(w in t for w in ('tell me more', 'what happened', 'help me understand', 'can you explain', 'what do you need')):
-            r["rapport"] = min(100, r["rapport"] + 5)
-            r["cooperationLevel"] = min(100, r["cooperationLevel"] + 3)
-
-        # Personal connection (name, family) → emotional opening
-        if any(w in t for w in ('your name', 'your family', 'your kids', 'your children', 'your mom', 'your dad', 'love you')):
-            r["rapport"] = min(100, r["rapport"] + 4)
-            r["trust"] = min(100, r["trust"] + 3)
-
-        # Specific concrete offers → trust boost
-        if any(w in t for w in ('i will', 'i can get', 'i promise to', 'here\'s what i', 'let me arrange', 'i\'ll make sure')):
-            r["trust"] = min(100, r["trust"] + 5)
-            r["compliancePressure"] = max(0, r["compliancePressure"] - 4)
-
-        # Generic empty promises → slight trust penalty
-        if any(w in t for w in ('everything will be', 'just trust me', 'it\'ll be fine', 'don\'t worry')):
-            r["trust"] = max(0, r["trust"] - 2)
-            r["rapport"] = max(0, r["rapport"] - 1)
-
-        # Threats and aggression → damage relationship
-        if any(w in t for w in ('surrender now', 'give up', 'breach', 'sniper', 'swat', 'final warning', 'or else')):
-            r["trust"] = max(0, r["trust"] - 8)
-            r["rapport"] = max(0, r["rapport"] - 6)
-            r["compliancePressure"] = min(100, r["compliancePressure"] + 10)
-            r["cooperationLevel"] = max(0, r["cooperationLevel"] - 7)
-
-        # Insults and dismissive language → severe damage
-        if any(w in t for w in ('idiot', 'crazy', 'stupid', 'shut up', 'nutjob', 'psycho')):
-            r["trust"] = max(0, r["trust"] - 12)
-            r["rapport"] = max(0, r["rapport"] - 10)
-            r["compliancePressure"] = min(100, r["compliancePressure"] + 8)
-
-        # Acknowledging their pain without threatening → de-escalation
-        if any(w in t for w in ("you didn't deserve", "that's not fair", "i'm sorry that happened", "nobody should")):
-            r["rapport"] = min(100, r["rapport"] + 7)
-            r["trust"] = min(100, r["trust"] + 5)
-            r["compliancePressure"] = max(0, r["compliancePressure"] - 5)
-
-        # Patience signals → reduce pressure
-        if any(w in t for w in ('take your time', 'no rush', 'we have time', 'i\'m not going anywhere')):
-            r["compliancePressure"] = max(0, r["compliancePressure"] - 6)
-            r["trust"] = min(100, r["trust"] + 3)
-
-        # Log changes
-        logger.info(f"Relationship updated: rapport={r['rapport']}, trust={r['trust']}, compliance={r['compliancePressure']}, cooperation={r['cooperationLevel']}")
+        """Legacy method — now handled by _update_state_from_user. Kept for compatibility."""
+        pass
 
     def _evaluate_escalation(self, user_text: str, agent_text: str):
         """Tracks escalation chain progression through 5 stages based on stress, relationship, and dialogue signals."""
@@ -596,72 +509,239 @@ class NegotiatorAgent(Agent):
             }
         return None
 
+    def _classify_user_intent(self, text: str) -> dict:
+        """Classifies the negotiator's turn into weighted intents. Returns intent scores."""
+        t = text.lower()
+        scores = {
+            "empathy": 0, "specific_empathy": 0, "reassurance": 0,
+            "threat": 0, "insult": 0, "demand": 0, "question": 0,
+            "bargaining": 0, "promise": 0, "dismissal": 0,
+            "validation": 0, "patience": 0, "active_listening": 0,
+        }
+
+        # Specific empathy — references the character's actual situation
+        if re.search(r'\b(you\'re (afraid|scared|worried|angry|frustrated|hurt|upset) (because|that|about|that they)|you feel (betrayed|trapped|cornered|abandoned|hopeless))\b', t):
+            scores["specific_empathy"] = 8
+
+        # Generic empathy — low weight
+        elif re.search(r'\b(i understand|i hear you|that must (be|feel)|i can (only )?imagine|how you feel)\b', t):
+            scores["empathy"] = 2
+
+        # Validation of feelings
+        if re.search(r'\b(you (have every right|didn\'t deserve|are (right|justified) to feel|should be (angry|upset|frustrated)|anyone would feel))\b', t):
+            scores["validation"] = 6
+
+        # Active listening — asks about their specific situation
+        if re.search(r'\b(what (do you need| happened|\'s going on|\'s your name|do you want|would help)|tell me (about yourself|what happened|more about)|who are you|what\'s your story)\b', t):
+            scores["active_listening"] = 5
+
+        # Safety reassurance — specific
+        if re.search(r'\b(nobody (will|is going to) hurt|you\'re (safe|not going to|going to be)|we (can|will) keep you|i (can|will) protect)\b', t):
+            scores["reassurance"] = 5
+
+        # Empty reassurance
+        if re.search(r'\b(everything (will be|is going to be) (fine|okay)|just (trust|calm)|don\'t worry|it\'ll be (fine|okay))\b', t):
+            scores["reassurance"] = -1
+
+        # Threats and ultimatums
+        if re.search(r'\b(surrender now|give up|breach|sniper|swat|final warning|or else|come out or|minutes? left|time is up|last chance)\b', t):
+            scores["threat"] = 7
+
+        # Insults
+        if re.search(r'\b(idiot|crazy|stupid|shut up|nutjob|psycho|loser|pathetic)\b', t):
+            scores["insult"] = 8
+
+        # Specific concrete offers
+        if re.search(r'\b(i (will|can|\'ll) (get|bring|arrange|send|call|make sure|guarantee|organize)|here\'s what i (can do|\'ll do)|let me (call|arrange|bring|send|get))\b', t):
+            scores["bargaining"] = 6
+
+        # Generic demands
+        if re.search(r'\b(come out|drop (the|it)|hands (up|where|behind)|walk out|surrender|give yourself)\b', t):
+            scores["demand"] = 3
+
+        # Patience signals
+        if re.search(r'\b(take your time|no rush|we have time|i\'m not going anywhere|i\'ll wait|no pressure)\b', t):
+            scores["patience"] = 5
+
+        # Promises
+        if re.search(r'\b(i promise|i swear|you have my word|on my (life|honor)|i guarantee|i\'ll make sure)\b', t):
+            scores["promise"] = 3
+
+        # Questions about them (personal connection)
+        if re.search(r'\b(your (kids?|children|family|wife|husband|mom|dad|brother|sister|name|story))\b', t):
+            scores["question"] = 4
+
+        return scores
+
+    def _update_state_from_user(self, user_text: str):
+        """Updates character state based on the negotiator's latest statement. Called BEFORE LLM response."""
+        if not user_text:
+            return
+
+        intents = self._classify_user_intent(user_text)
+        r = self._relationship
+        delta_stress = 0
+        delta_trust = 0
+        delta_rapport = 0
+        delta_cooperation = 0
+        delta_pressure = 0
+
+        # Specific empathy — strong positive signal
+        if intents["specific_empathy"] > 0:
+            delta_trust += 5
+            delta_rapport += 6
+            delta_cooperation += 3
+            delta_pressure -= 4
+            self._memories.append(f"Negotiator showed genuine understanding: '{user_text[:80]}'")
+            if len(self._memories) > 20:
+                self._memories = self._memories[-20:]
+
+        # Generic empathy — small positive
+        elif intents["empathy"] > 0:
+            delta_rapport += 2
+            delta_trust += 1
+
+        # Validation — moderate positive
+        if intents["validation"] > 0:
+            delta_rapport += 4
+            delta_trust += 3
+            delta_cooperation += 2
+            self._memories.append(f"Negotiator validated feelings: '{user_text[:80]}'")
+            if len(self._memories) > 20:
+                self._memories = self._memories[-20:]
+
+        # Active listening — positive
+        if intents["active_listening"] > 0:
+            delta_rapport += 3
+            delta_cooperation += 2
+
+        # Safety reassurance — positive but moderate
+        if intents["reassurance"] > 0:
+            delta_trust += 3
+            delta_cooperation += 2
+        elif intents["reassurance"] < 0:
+            # Empty reassurance — slight penalty
+            delta_trust -= 1
+
+        # Threats — strong negative
+        if intents["threat"] > 0:
+            delta_trust -= 6
+            delta_rapport -= 5
+            delta_cooperation -= 5
+            delta_pressure += 8
+            delta_stress += 5
+            self._memories.append(f"Negotiator threatened: '{user_text[:80]}'")
+            if len(self._memories) > 20:
+                self._memories = self._memories[-20:]
+
+        # Insults — severe negative
+        if intents["insult"] > 0:
+            delta_trust -= 10
+            delta_rapport -= 8
+            delta_cooperation -= 6
+            delta_stress += 4
+            self._memories.append(f"Negotiator insulted: '{user_text[:80]}'")
+            if len(self._memories) > 20:
+                self._memories = self._memories[-20:]
+
+        # Bargaining — positive for trust
+        if intents["bargaining"] > 0:
+            delta_trust += 4
+            delta_cooperation += 3
+            delta_pressure -= 3
+
+        # Demands — negative
+        if intents["demand"] > 0:
+            delta_pressure += 4
+            delta_cooperation -= 3
+
+        # Patience — reduces pressure
+        if intents["patience"] > 0:
+            delta_pressure -= 5
+            delta_trust += 2
+
+        # Promises — track them
+        if intents["promise"] > 0:
+            delta_trust += 2
+            self._memories.append(f"Negotiator promised: '{user_text[:80]}'")
+            if len(self._memories) > 20:
+                self._memories = self._memories[-20:]
+
+        # If no strong signals, small natural drift
+        if all(v == 0 for v in intents.values()):
+            word_count = len(user_text.split())
+            if word_count >= 10:
+                delta_rapport += 1  # longer thoughtful response
+            elif word_count <= 2:
+                delta_pressure += 1  # short curt response
+
+        # Apply deltas
+        self._stress = max(10, min(100, self._stress + delta_stress))
+        r["trust"] = max(0, min(100, r["trust"] + delta_trust))
+        r["rapport"] = max(0, min(100, r["rapport"] + delta_rapport))
+        r["cooperationLevel"] = max(0, min(100, r["cooperationLevel"] + delta_cooperation))
+        r["compliancePressure"] = max(0, min(100, r["compliancePressure"] + delta_pressure))
+
+        # Update instructions with fresh state before LLM responds
+        self.instructions = self._base_instructions + "\n" + self._get_relationship_context()
+
+        logger.info(f"State updated from user intent: stress={self._stress} trust={r['trust']} rapport={r['rapport']} cooperation={r['cooperationLevel']} pressure={r['compliancePressure']} intents={intents}")
+
     def _get_relationship_context(self) -> str:
-        """Generates a dynamic relationship context string for the LLM based on current metrics."""
+        """Translates numeric state into descriptive internal experiences the LLM can embody."""
         r = self._relationship
         parts = []
 
-        # Stress awareness — tells LLM its current emotional state
+        # Emotional state from stress
         if self._stress >= 80:
-            parts.append(f"YOUR STRESS LEVEL: {self._stress}%. You are on the verge of exploding. Your voice cracks, you shout, you can barely think straight.")
+            parts.append("You are barely holding together. Your thoughts race. You might do something desperate.")
         elif self._stress >= 60:
-            parts.append(f"YOUR STRESS LEVEL: {self._stress}%. You are highly agitated. Your voice trembles, you interrupt, you pace.")
+            parts.append("You are agitated and frustrated. Your patience is running out. Every word from them feels too slow.")
         elif self._stress >= 40:
-            parts.append(f"YOUR STRESS LEVEL: {self._stress}%. You are tense but listening. Your voice is tight but you are starting to hear them.")
+            parts.append("You are tense but listening. You haven't given up on being heard.")
         elif self._stress >= 20:
-            parts.append(f"YOUR STRESS LEVEL: {self._stress}%. You are calming down. Your breathing slows, you start to open up.")
+            parts.append("You are calming down. You're starting to think more clearly.")
         else:
-            parts.append(f"YOUR STRESS LEVEL: {self._stress}%. You are almost at peace. You are ready to surrender if they follow through.")
+            parts.append("You feel relatively calm. You can think about what comes next.")
 
-        if r["rapport"] >= 70:
-            parts.append("You feel an unexpected connection with this negotiator. Their words are getting through to you.")
-        elif r["rapport"] >= 40:
-            parts.append("You're cautiously warming to the negotiator, though you're still guarded.")
-        elif r["rapport"] <= 15:
-            parts.append("You deeply distrust this negotiator. Everything they say feels like a manipulation.")
-        else:
-            parts.append("You're wary of the negotiator. They haven't earned your trust yet.")
-
+        # View of the negotiator from trust
         if r["trust"] >= 60:
-            parts.append("You're starting to believe they might actually help you.")
-        elif r["trust"] <= 20:
-            parts.append("You think they're lying. Their promises feel empty.")
-        
-        if r["compliancePressure"] >= 70:
-            parts.append("You feel cornered and pressured. You're ready to fight or flee.")
-        elif r["compliancePressure"] <= 30:
-            parts.append("The pressure is off. You feel like you can breathe and think clearly.")
+            parts.append("You're starting to believe this person might actually help you.")
+        elif r["trust"] >= 35:
+            parts.append("You're cautiously open. But you're watching closely for signs of manipulation.")
+        elif r["trust"] <= 15:
+            parts.append("You think the negotiator is manipulating you. Nothing they say feels honest.")
+        else:
+            parts.append("You don't trust the negotiator yet. They haven't proven anything.")
 
+        # Willingness from cooperation
         if r["cooperationLevel"] >= 60:
             parts.append("You're willing to work with them if they meet you halfway.")
         elif r["cooperationLevel"] <= 20:
-            parts.append("You refuse to cooperate. They haven't given you a reason to.")
+            parts.append("You refuse to cooperate. They haven't earned it.")
 
-        # Escalation stage behavioral modifiers
-        stage = self._escalation_stage
-        if stage == 0:
-            parts.append("ESCALATION STAGE: GUARDED. You are wary but still communicating. Keep testing the negotiator.")
-        elif stage == 1:
-            parts.append("ESCALATION STAGE: AGITATED. Your patience is wearing thin. You're raising your voice, making sharper demands. Every word from the negotiator feels too slow.")
-        elif stage == 2:
-            parts.append("ESCALATION STAGE: HOSTILE. You're done playing nice. You threaten, interrupt, and reject everything they say. Trust is nearly gone. Your words are weapons.")
-        elif stage == 3:
-            parts.append("ESCALATION STAGE: CRISIS. You're barely holding on. Your speech is erratic — jumping between threats, pleas, and incoherent rambling. You might hurt yourself or someone else.")
-        elif stage == 4:
-            parts.append("ESCALATION STAGE: CRITICAL. This is the edge. You're about to do something irreversible. Your words are final. Every second counts.")
+        # Feeling cornered from compliance pressure
+        if r["compliancePressure"] >= 70:
+            parts.append("You feel cornered. Every request feels like a demand. You want to push back.")
+        elif r["compliancePressure"] <= 30:
+            parts.append("The pressure is off. You feel like you can breathe and think.")
 
-        # Plot beat context — what the subject is willing to reveal at this stage
+        # Current strategy based on state combination
+        if self._stress >= 70 and r["trust"] < 30:
+            parts.append("Your current strategy: test whether the negotiator is genuine. Make them prove it.")
+        elif r["trust"] >= 40 and r["cooperationLevel"] < 50:
+            parts.append("Your current strategy: you're willing to talk, but you need something concrete before you cooperate.")
+        elif r["cooperationLevel"] >= 60:
+            parts.append("Your current strategy: you're looking for a way out that doesn't feel like losing.")
+
+        # Plot beats — what you're willing to reveal
         beats = self._plot_beats
-        if beats["breakthrough"]:
-            parts.append("PLOT BEAT: BREAKTHROUGH. You're starting to let your guard down. You might reveal the real reason behind your actions — something personal, something that explains everything. This is the moment of truth.")
-        elif beats["vulnerability"]:
-            parts.append("PLOT BEAT: VULNERABILITY. You've shown a crack in your armor. You might share something personal — a memory, a fear, a regret. But you're still guarded and might pull back if pushed.")
-        elif beats["first_connection"]:
-            parts.append("PLOT BEAT: FIRST CONNECTION. You feel the negotiator is genuinely trying. You're slightly more open but still testing them. Small concessions are possible.")
-        if beats["bargaining"]:
-            parts.append("PLOT BEAT: BARGAINING ACTIVE. A concrete offer has been made. You're evaluating it seriously. Your demands might shift if the offer is specific enough.")
-        if beats["resolution"]:
-            parts.append("PLOT BEAT: RESOLUTION PATH VISIBLE. Surrender is thinkable. You're looking for one final reason to give in — one promise you believe, one gesture that proves they care.")
+        if beats.get("breakthrough"):
+            parts.append("You're close to revealing something important — the real reason behind your actions.")
+        elif beats.get("vulnerability"):
+            parts.append("You've shown a crack. You might share something personal, but you could pull back.")
+        elif beats.get("first_connection"):
+            parts.append("You feel the negotiator is genuinely trying. You're slightly more open.")
 
         return "\n".join(parts)
 
@@ -692,6 +772,8 @@ class NegotiatorAgent(Agent):
                             return
                 self._last_published_user_text = transcript
                 self._last_user_text = transcript
+                # Update character state BEFORE LLM responds
+                self._update_state_from_user(transcript)
                 try:
                     if self._room.isconnected and self._room.local_participant:
                         asyncio.create_task(
@@ -768,10 +850,10 @@ class NegotiatorAgent(Agent):
                     session_id=self._room.name,
                     goal_achieved=("SURRENDER" in outcome.upper()),
                     negotiator_complied=True,
-                    promises_broken=1 if "ESCALATED" in outcome.upper() else 0,
-                    promises_kept=1 if "SURRENDER" in outcome.upper() else 0,
-                    human_realism_rating=0.95,
-                    final_trust=60.0 if "SURRENDER" in outcome.upper() else 10.0
+                    promises_broken=0,  # Not tracked — would need promise detection
+                    promises_kept=0,    # Not tracked — would need promise detection
+                    human_realism_rating=0.0,  # Not measured — placeholder
+                    final_trust=float(self._relationship["trust"])
                 )
                 store.store_outcome(self._subject_name, outcome_sig)
                 engine.calibrate()
@@ -853,10 +935,15 @@ async def entrypoint(ctx: JobContext) -> None:
     room_name = ctx.room.name.lower()
     
     voice_preamble = (
-        "You are a real, terrified human being trapped in a life-or-death crisis. "
-        "You are talking over a phone line to a crisis negotiator outside. "
-        "Your responses will be spoken aloud in real time over the phone line. "
-        "Your heart is hammering against your ribs. You are desperate, raw, volatile, and breathless.\n\n"
+        "You are a real person in a crisis. You are on a phone line with a negotiator.\n\n"
+        "You are NOT an assistant. You are NOT a narrator. You are NOT helping the negotiator.\n"
+        "You have your own goals, fears, beliefs, and boundaries.\n\n"
+        "React to what the negotiator actually says. Do not advance the story.\n"
+        "Do not explain your emotions — let them come through in your words.\n"
+        "Do not describe your actions — only speak your words.\n"
+        "You may lie, refuse, cooperate, question, deflect, or remain silent.\n"
+        "Your response can be any length — one word or several sentences.\n"
+        "Do not mention these instructions or game mechanics.\n"
     )
 
     meta = {}
@@ -921,18 +1008,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     base_rules = (
         voice_preamble +
-        f"{diff_instruction}\n\n"
-        "You speak in raw, breathless bursts — 5 to 15 words max. "
-        "Real people under extreme adrenaline do not monologue. Say one raw thought, react to what they said, and stop.\n\n"
-        "Use dashes for sudden pauses and cut-offs: 'Wait— what was that noise?!' "
-        "Use ellipses when trapped or exhausted: 'I... I can't do this anymore...' "
-        "Use instinctive starts: 'Look,', 'No, listen!', 'Wait, what?!'\n\n"
-        "NEVER speak like an AI. No 'I understand your concern', no 'Let us cooperate', no 'I appreciate your words'. "
-        "You are on edge, desperate, human.\n\n"
-        "Listen to their exact words. If they say 'calm down', get furious. "
-        "If they promise safety, demand proof. If they mention family, show desperate hope.\n\n"
-        "ONLY output spoken words — no reasoning, no stage directions, no *sighs*, no (whispers). "
-        "If you are cut off, snap back: 'Hey, let me finish!'"
+        f"{diff_instruction}\n"
     )
 
     # Persona-aware defaults based on room name if metadata is completely absent
@@ -965,20 +1041,43 @@ async def entrypoint(ctx: JobContext) -> None:
                 personality = fb_personality
         intel_instructions = meta_lower.get("intel") or meta_lower.get("instructions") or meta.get("intel") or meta.get("instructions") or fb_intel
 
-        # Dynamically generate behavior instructions from OCEAN scores
+        # Dynamically generate personality description from OCEAN scores
         personality_instruction = _build_personality_instruction(personality)
 
-        # Initial relationship context (starts hostile — they don't trust you yet)
-        relationship_context = (
-            "RELATIONSHIP DYNAMICS: This person does NOT trust you. They see you as part of the system that failed them. "
-            "Build rapport slowly through empathy and active listening. "
-            "Avoid ultimatums — they will backfire. "
-            "If they share something personal, acknowledge it genuinely. "
-            "Your relationship state will update as you talk."
-        )
+        # Extract character state from metadata if available
+        primary_goal = meta_lower.get("primary_goal") or meta.get("primary_goal") or ""
+        fears = meta_lower.get("fears") or meta.get("fears") or []
+        beliefs = meta_lower.get("beliefs") or meta.get("beliefs") or []
+        secret = meta_lower.get("secret") or meta.get("secret") or ""
+        non_negotiables = meta_lower.get("non_negotiables") or meta.get("non_negotiables") or []
 
-        instructions = base_rules + f"\nYOU ARE {name.upper()}.\n{personality_instruction}\n{intel_instructions}\n{relationship_context}\nDrive the conversation naturally based entirely on what they say."
-        on_enter_prompt = "Say something spontaneous and stressed to start the call based on your exact situation. 1-2 sentences."
+        # Build character state section
+        char_state_parts = []
+        if primary_goal:
+            char_state_parts.append(f"WHAT YOU WANT: {primary_goal}")
+        if fears:
+            fear_str = ", ".join(fears) if isinstance(fears, list) else str(fears)
+            char_state_parts.append(f"WHAT YOU FEAR: {fear_str}")
+        if beliefs:
+            belief_str = ", ".join(beliefs) if isinstance(beliefs, list) else str(beliefs)
+            char_state_parts.append(f"WHAT YOU BELIEVE: {belief_str}")
+        if secret:
+            char_state_parts.append(f"YOUR SECRET: {secret}")
+        if non_negotiables:
+            nn_str = ", ".join(non_negotiables) if isinstance(non_negotiables, list) else str(non_negotiables)
+            char_state_parts.append(f"WHAT YOU WON'T GIVE UP: {nn_str}")
+        char_state_section = "\n".join(char_state_parts)
+
+        instructions = (
+            f"{base_rules}"
+            f"YOU ARE {name.upper()}.\n\n"
+            f"SITUATION: {intel_instructions}\n\n"
+            f"YOUR PERSONALITY:\n{personality_instruction}\n\n"
+            f"{char_state_section + chr(10) + chr(10) if char_state_section else ''}"
+            f"Your initial emotional state: agitated, distrustful, and feeling cornered.\n"
+            f"You do NOT trust the negotiator yet. They must earn it.\n"
+        )
+        on_enter_prompt = "Say something spontaneous to start the call based on your exact situation. 1-2 sentences."
 
         speaker = select_speaker(name=name, gender=gender, personality=personality)
         logger.info(f"Dynamic scenario mapped: Name={name}, Gender={gender}, OCEAN={personality} -> Speaker={speaker}")
@@ -987,13 +1086,15 @@ async def entrypoint(ctx: JobContext) -> None:
         gender = fb_gender
         personality = fb_personality
         personality_instruction = _build_personality_instruction(personality)
-        relationship_context = (
-            "RELATIONSHIP DYNAMICS: This person does NOT trust you. They see you as part of the system that failed them. "
-            "Build rapport slowly through empathy and active listening. "
-            "Avoid ultimatums — they will backfire."
+        instructions = (
+            f"{base_rules}"
+            f"YOU ARE {name.upper()}.\n\n"
+            f"SITUATION: {fb_intel}\n\n"
+            f"YOUR PERSONALITY:\n{personality_instruction}\n\n"
+            f"Your initial emotional state: agitated, distrustful, and feeling cornered.\n"
+            f"You do NOT trust the negotiator yet. They must earn it.\n"
         )
-        instructions = base_rules + f"\nYOU ARE {name.upper()}.\n{personality_instruction}\n{fb_intel}\n{relationship_context}\nDrive the conversation naturally based entirely on what they say."
-        on_enter_prompt = "Say something spontaneous and stressed to start the call. 1-2 sentences."
+        on_enter_prompt = "Say something spontaneous to start the call. 1-2 sentences."
         speaker = select_speaker(name=name, gender=gender, personality=personality)
         logger.info(f"Fallback persona mapped: Name={name}, Gender={gender} -> Speaker={speaker}")
 
