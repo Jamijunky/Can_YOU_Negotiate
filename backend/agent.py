@@ -776,7 +776,11 @@ class NegotiatorAgent(Agent):
             self._memories = self._memories[-20:]
 
         # Update instructions with fresh state before LLM responds
-        self.instructions = self._base_instructions + "\n" + self._get_character_context()
+        new_instructions = self._base_instructions + "\n" + self._get_character_context()
+        try:
+            asyncio.create_task(self.session.update_instructions(new_instructions))
+        except Exception as e:
+            logger.warning(f"Failed to update session instructions: {e}")
 
         logger.info(
             f"State updated: stress={self._stress} trust={self._trust} "
