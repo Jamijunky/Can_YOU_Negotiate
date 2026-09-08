@@ -673,9 +673,11 @@ class NegotiatorAgent(Agent):
             if not transcript:
                 return
             if ev.is_final:
-                # Deduplicate: skip if exact same text as last published
-                if hasattr(self, '_last_published_user_text'):
-                    if transcript.strip().lower() == self._last_published_user_text.strip().lower():
+                # Deduplicate: skip if same or subset of last published text
+                if hasattr(self, '_last_published_user_text') and self._last_published_user_text:
+                    prev = self._last_published_user_text.strip().lower()
+                    curr = transcript.strip().lower()
+                    if curr == prev or prev.startswith(curr) or curr.startswith(prev):
                         logger.info(f"Skipping duplicate user transcript: {transcript}")
                         return
                 self._last_published_user_text = transcript

@@ -34,7 +34,7 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
             const lastItem =
               prev.length > 0 ? prev[prev.length - 1] : null;
 
-            // Deduplicate: skip only if exact same text as last entry within 5s
+            // Deduplicate: skip if same or already contained in last entry within 5s
             const MERGE_WINDOW_MS = 5000;
             if (
               lastItem &&
@@ -42,8 +42,8 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
             ) {
               const prevNorm = lastItem.text.toLowerCase().trim();
               const currNorm = data.text.toLowerCase().trim();
-              if (currNorm === prevNorm) {
-                return prev; // skip exact duplicate
+              if (currNorm === prevNorm || prevNorm.includes(currNorm)) {
+                return prev; // skip duplicate or subset
               }
             }
 
@@ -54,6 +54,10 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
               lastItem.speaker === "user" &&
               now - lastItem.finalizedAt < MERGE_WINDOW_MS
             ) {
+              // Skip if new text is already part of existing text
+              if (lastItem.text.toLowerCase().includes(data.text.toLowerCase().toLowerCase())) {
+                return prev;
+              }
               const updated = [...prev];
               updated[updated.length - 1] = {
                 ...lastItem,
