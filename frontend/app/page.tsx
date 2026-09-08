@@ -350,30 +350,23 @@ function HomeContent() {
           </div>
 
         ) : (
-          /* ── ACTIVE SESSION ─────────────────────────────────────── */
-          <div className="w-full max-w-4xl bg-[#0f0f0f] border border-[#f4f0e6]/10 shadow-[0_0_60px_rgba(0,0,0,0.8)] relative mt-8 overflow-hidden">
-
-            {/* Scanline overlay */}
-            <div
-              className="absolute inset-0 pointer-events-none z-[1]"
-              style={{ backgroundImage: "repeating-linear-gradient(to bottom, transparent 0px, transparent 3px, rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px)" }}
-              aria-hidden="true"
-            />
+          /* ── ACTIVE SESSION — cream theme matching lobby ─────────── */
+          <div className="w-full max-w-4xl bg-[#f4f0e6] border-4 border-[#1e1e1e] shadow-[12px_12px_0_0_#1e1e1e] relative mt-8 overflow-hidden">
 
             {/* Top chrome bar */}
-            <div className="relative z-10 flex items-center justify-between px-4 py-2 border-b border-[#f4f0e6]/10 bg-[#1a1a1a]">
+            <div className="flex items-center justify-between px-4 py-2 border-b-4 border-[#1e1e1e] bg-[#1e1e1e]">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-[#dc2626] glow-red" aria-hidden="true" />
-                <span className="font-mono text-[10px] font-bold tracking-widest text-[#f4f0e6]/50 uppercase">LIVE_FEED</span>
+                <span className="font-mono text-[10px] font-bold tracking-widest text-[#f4f0e6]/70 uppercase">LIVE_FEED</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] text-[#f4f0e6]/30 tracking-widest uppercase">SUBJECT:</span>
+                <span className="font-mono text-[10px] text-[#f4f0e6]/40 tracking-widest uppercase">SUBJECT:</span>
                 <span className="font-mono text-xs font-black tracking-widest text-[#d99a4e] uppercase">{currentName}</span>
               </div>
             </div>
 
             {/* Two-column body */}
-            <div className="relative z-10 flex min-h-0">
+            <div className="flex min-h-0">
               <LiveKitRoom
                 serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
                 token={token}
@@ -384,9 +377,9 @@ function HomeContent() {
                 className="flex-1 min-w-0 flex"
               >
                 {/* ── LEFT: gauges ── */}
-                <div className="w-64 shrink-0 border-r border-[#f4f0e6]/8 flex flex-col bg-[#141414]">
-                  {/* Stress gauge + intel */}
-                  <div className="flex items-stretch border-b border-[#f4f0e6]/8">
+                <div className="w-64 shrink-0 border-r-4 border-[#1e1e1e] flex flex-col bg-[#f4f0e6]">
+                  {/* Stress gauge row */}
+                  <div className="flex items-stretch border-b-2 border-[#1e1e1e]/20">
                     <MissionStatus onReport={setReport} />
                     <div className="flex-1 min-w-0">
                       <LiveKitErrorBoundary>
@@ -404,13 +397,13 @@ function HomeContent() {
                 </div>
 
                 {/* ── RIGHT: transcript (dominant) + controls ── */}
-                <div className="flex-1 min-w-0 flex flex-col">
+                <div className="flex-1 min-w-0 flex flex-col bg-[#f4f0e6]">
                   <div className="flex-1 overflow-hidden">
                     <LiveKitErrorBoundary>
                       <LiveTranscriptFeed subjectName={currentName} />
                     </LiveKitErrorBoundary>
                   </div>
-                  <div className="shrink-0 border-t border-[#f4f0e6]/8">
+                  <div className="shrink-0 border-t-2 border-[#1e1e1e]/20">
                     <LiveKitErrorBoundary>
                       <SimulationUI
                         subjectName={currentName}

@@ -25,7 +25,7 @@ const ObjectiveDisplay = memo(function ObjectiveDisplay() {
   if (!objective.text && beliefs.length === 0) return null;
 
   return (
-    <div className="p-3 border-b border-[#f4f0e6]/8" role="region" aria-label="Subject objective and beliefs">
+    <div className="p-3 border-b-2 border-[#1e1e1e]/15" role="region" aria-label="Subject objective and beliefs">
       <div className="font-mono text-[9px] font-bold tracking-[0.18em] text-[#d99a4e] uppercase mb-2 flex items-center gap-1.5">
         <span className="w-1.5 h-1.5 rounded-full bg-[#d99a4e] animate-pulse" aria-hidden="true" />
         SUBJECT MIND
@@ -33,25 +33,25 @@ const ObjectiveDisplay = memo(function ObjectiveDisplay() {
 
       {objective.text && (
         <div className="mb-2">
-          <div className="font-mono text-[8px] text-[#f4f0e6]/30 uppercase tracking-wider mb-0.5">Objective</div>
-          <p className="font-serif text-[11px] text-[#f4f0e6]/60 leading-snug">{objective.text}</p>
+          <div className="font-mono text-[8px] text-[#1e1e1e]/35 uppercase tracking-wider mb-0.5">Objective</div>
+          <p className="font-serif text-[11px] text-[#1e1e1e]/65 leading-snug">{objective.text}</p>
         </div>
       )}
 
       {objective.strategy && (
         <div className="mb-2">
-          <div className="font-mono text-[8px] text-[#f4f0e6]/30 uppercase tracking-wider mb-0.5">Strategy</div>
-          <p className="font-serif text-[11px] text-[#f4f0e6]/45 leading-snug italic">{objective.strategy}</p>
+          <div className="font-mono text-[8px] text-[#1e1e1e]/35 uppercase tracking-wider mb-0.5">Strategy</div>
+          <p className="font-serif text-[11px] text-[#1e1e1e]/50 leading-snug italic">{objective.strategy}</p>
         </div>
       )}
 
       {beliefs.length > 0 && (
         <div>
-          <div className="font-mono text-[8px] text-[#f4f0e6]/30 uppercase tracking-wider mb-1">Current Beliefs</div>
+          <div className="font-mono text-[8px] text-[#1e1e1e]/35 uppercase tracking-wider mb-1">Current Beliefs</div>
           <ul className="space-y-0.5">
             {beliefs.map((b, i) => (
-              <li key={i} className="font-serif text-[10px] text-[#f4f0e6]/40 leading-snug flex gap-1">
-                <span className="text-[#d99a4e]/50 shrink-0">—</span>
+              <li key={i} className="font-serif text-[10px] text-[#1e1e1e]/45 leading-snug flex gap-1">
+                <span className="text-[#d99a4e]/60 shrink-0">—</span>
                 <span>{b}</span>
               </li>
             ))}

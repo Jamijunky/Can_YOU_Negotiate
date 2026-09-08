@@ -13,7 +13,7 @@ const INITIAL: Relationship = {
 
 function barColor(value: number, inverse: boolean): string {
   const v = inverse ? 100 - value : value;
-  if (v >= 65) return "#22c55e";
+  if (v >= 65) return "#16a34a";
   if (v >= 35) return "#d99a4e";
   return "#dc2626";
 }
@@ -52,7 +52,7 @@ const RelationshipDisplay = memo(function RelationshipDisplay() {
   ];
 
   return (
-    <div className="p-3 border-b border-[#f4f0e6]/8" role="region" aria-label="Relationship dynamics">
+    <div className="p-3 border-b-2 border-[#1e1e1e]/15" role="region" aria-label="Relationship dynamics">
       <div className="font-mono text-[9px] font-bold tracking-[0.18em] text-[#d99a4e] uppercase mb-2.5 flex items-center gap-1.5">
         <span className="w-1.5 h-1.5 rounded-full bg-[#d99a4e] animate-pulse" aria-hidden="true" />
         RELATIONSHIP_DYNAMICS
@@ -64,10 +64,10 @@ const RelationshipDisplay = memo(function RelationshipDisplay() {
           return (
             <div key={m.label}>
               <div className="flex items-center justify-between mb-0.5">
-                <span className="font-mono text-[9px] text-[#f4f0e6]/40 uppercase tracking-wider">{m.label}</span>
+                <span className="font-mono text-[9px] text-[#1e1e1e]/50 uppercase tracking-wider">{m.label}</span>
                 <span className="font-mono text-[8px] font-bold tracking-wider" style={{ color }}>{label}</span>
               </div>
-              <div className="h-1.5 bg-[#f4f0e6]/5 border border-[#f4f0e6]/8 relative overflow-hidden">
+              <div className="h-1.5 bg-[#1e1e1e]/10 border border-[#1e1e1e]/10 relative overflow-hidden">
                 <div
                   className="absolute inset-y-0 left-0 transition-all duration-700 ease-out"
                   style={{ width: `${m.value}%`, backgroundColor: color, boxShadow: `0 0 4px ${color}60` }}

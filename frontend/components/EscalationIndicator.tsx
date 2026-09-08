@@ -29,25 +29,24 @@ const EscalationIndicator = memo(function EscalationIndicator() {
   const info = ESCALATION_STAGE_LABELS[esc.stage];
 
   return (
-    <div className="p-3 border-b border-[#f4f0e6]/8" role="region" aria-label="Escalation stage">
+    <div className="p-3 border-b-2 border-[#1e1e1e]/15" role="region" aria-label="Escalation stage">
       <div className="font-mono text-[9px] font-bold tracking-[0.18em] text-[#d99a4e] uppercase mb-2 flex items-center gap-1.5">
         <span className="w-1.5 h-1.5 rounded-full bg-[#d99a4e] animate-pulse" aria-hidden="true" />
         ESCALATION_CHAIN
       </div>
 
-      {/* Stage pip track */}
       <div className="flex items-center gap-1 mb-2" aria-hidden="true">
         {STAGES.map((s) => {
-          const active = s <= esc.stage;
+          const active  = s <= esc.stage;
           const current = s === esc.stage;
           return (
             <div
               key={s}
               className="flex-1 h-1.5 transition-all duration-500"
               style={{
-                backgroundColor: active ? info.color : "rgba(244,240,230,0.08)",
-                boxShadow: current ? `0 0 6px ${info.color}` : "none",
-                opacity: active ? 1 : 0.3,
+                backgroundColor: active ? info.color : "rgba(30,30,30,0.12)",
+                boxShadow: current ? `0 0 5px ${info.color}` : "none",
+                opacity: active ? 1 : 0.4,
               }}
             />
           );
@@ -58,9 +57,9 @@ const EscalationIndicator = memo(function EscalationIndicator() {
         <span className="font-mono text-[10px] font-black tracking-wider uppercase" style={{ color: info.color }}>
           STAGE {esc.stage}: {info.label}
         </span>
-        <span className="font-mono text-[9px] text-[#f4f0e6]/30 tabular-nums">TURN {esc.totalTurns}</span>
+        <span className="font-mono text-[9px] text-[#1e1e1e]/30 tabular-nums">TURN {esc.totalTurns}</span>
       </div>
-      <p className="font-serif text-[11px] text-[#f4f0e6]/40 mt-0.5 leading-snug">{info.description}</p>
+      <p className="font-serif text-[11px] text-[#1e1e1e]/50 mt-0.5 leading-snug">{info.description}</p>
     </div>
   );
 });

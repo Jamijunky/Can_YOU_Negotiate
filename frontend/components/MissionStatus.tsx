@@ -35,18 +35,17 @@ const MissionStatus = memo(function MissionStatus({
   }, [onReport]);
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
-
   useDataChannel(handleData);
 
   const stressColor =
     stress > 80 ? "#dc2626" :
     stress > 50 ? "#f97316" :
     stress > 20 ? "#d99a4e" :
-    "#22c55e";
+    "#16a34a";
 
   return (
     <>
-      {/* ── Stress gauge sidebar ── */}
+      {/* ── Stress gauge — dark labels on cream bg ── */}
       <div
         className="flex flex-col items-center px-2 py-3 w-10 shrink-0"
         role="meter"
@@ -55,17 +54,17 @@ const MissionStatus = memo(function MissionStatus({
         aria-valuemax={100}
         aria-valuenow={stress}
       >
-        <span className="font-mono text-[7px] tracking-widest text-[#f4f0e6]/25 uppercase mb-1.5 [writing-mode:vertical-rl] rotate-180">
+        <span className="font-mono text-[7px] tracking-widest text-[#1e1e1e]/35 uppercase mb-1.5 [writing-mode:vertical-rl] rotate-180">
           STRESS
         </span>
-        <div className="flex-1 w-3 bg-[#f4f0e6]/5 border border-[#f4f0e6]/10 relative overflow-hidden min-h-[60px]">
+        <div className="flex-1 w-3 bg-[#1e1e1e]/8 border border-[#1e1e1e]/15 relative overflow-hidden min-h-[60px]">
           <div
             className="absolute bottom-0 left-0 right-0 transition-[height] duration-500 ease-out"
-            style={{ height: `${stress}%`, backgroundColor: stressColor, boxShadow: `0 0 6px ${stressColor}80` }}
+            style={{ height: `${stress}%`, backgroundColor: stressColor }}
           />
           {/* Win threshold */}
           <div
-            className="absolute left-0 right-0 h-px bg-[#22c55e]/40"
+            className="absolute left-0 right-0 h-px bg-[#16a34a]/50"
             style={{ bottom: `${SURRENDER_THRESHOLD_PERCENT}%` }}
           />
         </div>
@@ -77,18 +76,18 @@ const MissionStatus = memo(function MissionStatus({
       {/* ── Surrender overlay ── */}
       {surrendered && (
         <div
-          className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#0f0f0f]/95 backdrop-blur-sm p-8"
+          className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#1e1e1e]/90 backdrop-blur-sm p-8"
           role="alert"
           aria-label="Mission accomplished"
         >
           <div className="text-center transform -rotate-1">
-            <p className="font-mono text-[10px] tracking-[0.3em] text-[#d99a4e]/60 uppercase mb-4">
+            <p className="font-mono text-[10px] tracking-[0.3em] text-[#d99a4e]/70 uppercase mb-4">
               Outcome: Success
             </p>
             <h1 className="font-serif text-6xl md:text-7xl font-black text-[#d99a4e] tracking-tighter uppercase leading-none">
               Mission<br />Accomplished
             </h1>
-            <div className="mt-6 inline-block border-2 border-[#d99a4e]/50 px-4 py-1">
+            <div className="mt-6 inline-block border-2 border-[#d99a4e]/60 px-4 py-1">
               <span className="font-mono text-sm tracking-[0.25em] text-[#f4f0e6]">SUBJECT SURRENDERED</span>
             </div>
           </div>

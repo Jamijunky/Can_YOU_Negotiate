@@ -5,9 +5,9 @@ import { memo, useCallback, useState, useEffect, useRef } from "react";
 import type { CoachingHint } from "@/lib/types";
 
 const CATEGORY_COLORS: Record<CoachingHint["category"], string> = {
-  empathy:     "#22c55e",
+  empathy:     "#16a34a",
   patience:    "#d99a4e",
-  technique:   "#f4f0e6",
+  technique:   "#1e1e1e",
   warning:     "#dc2626",
   opportunity: "#d99a4e",
 };
@@ -51,16 +51,16 @@ const CoachingHints = memo(function CoachingHints() {
   if (visible.length === 0) return null;
 
   return (
-    <div className="p-3 border-b border-[#f4f0e6]/8" role="region" aria-label="Coaching hints">
+    <div className="p-3 border-b-2 border-[#1e1e1e]/15" role="region" aria-label="Coaching hints">
       <div className="font-mono text-[9px] font-bold tracking-[0.18em] text-[#d99a4e] uppercase mb-2 flex items-center gap-1.5">
         <span className="w-1.5 h-1.5 rounded-full bg-[#d99a4e] animate-pulse" aria-hidden="true" />
         TRAINING_MODE // COACHING_HINTS
       </div>
-      <div ref={scrollRef} className="space-y-1.5 max-h-28 overflow-y-auto thin-scroll">
+      <div ref={scrollRef} className="space-y-1.5 max-h-28 overflow-y-auto">
         {visible.map((hint) => (
           <div
             key={hint.id}
-            className="flex items-start gap-2 p-1.5 border-l-2 bg-white/4 animate-in fade-in duration-300"
+            className="flex items-start gap-2 p-1.5 border-l-2 bg-[#1e1e1e]/4 animate-in fade-in duration-300"
             style={{ borderColor: CATEGORY_COLORS[hint.category] }}
           >
             <span
@@ -69,10 +69,10 @@ const CoachingHints = memo(function CoachingHints() {
             >
               {CATEGORY_LABELS[hint.category]}
             </span>
-            <p className="font-serif text-[10px] text-[#f4f0e6]/60 leading-snug flex-1">{hint.text}</p>
+            <p className="font-serif text-[10px] text-[#1e1e1e]/65 leading-snug flex-1">{hint.text}</p>
             <button
               onClick={() => setDismissed((p) => new Set([...p, hint.id]))}
-              className="text-[#f4f0e6]/20 hover:text-[#f4f0e6]/50 text-xs shrink-0 transition-colors"
+              className="text-[#1e1e1e]/25 hover:text-[#1e1e1e]/60 text-xs shrink-0 transition-colors"
               aria-label="Dismiss hint"
             >×</button>
           </div>
