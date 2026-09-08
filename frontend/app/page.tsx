@@ -135,7 +135,7 @@ function HomeContent() {
 
   return (
     <main
-      className="min-h-screen flex flex-col items-center justify-start overflow-x-hidden relative py-12 px-4 bg-[#f4f0e6]"
+      className="min-h-screen flex flex-col items-center justify-start overflow-x-hidden relative py-6 px-4 bg-[#f4f0e6]"
     >
       {/* Background EKG line */}
       <div
@@ -200,7 +200,7 @@ function HomeContent() {
         </div>
       )}
 
-      <div className="z-10 mt-12 w-full max-w-4xl flex justify-center">
+      <div className="z-10 mt-12 w-full max-w-6xl flex justify-center">
 
         {/* ── DEBRIEF ─────────────────────────────────────────────── */}
         {report ? (
@@ -349,7 +349,7 @@ function HomeContent() {
 
         ) : (
           /* ── ACTIVE SESSION — cream theme matching lobby ─────────── */
-          <div className="w-full max-w-4xl bg-[#f4f0e6] border-4 border-[#1e1e1e] shadow-[12px_12px_0_0_#1e1e1e] relative mt-8 overflow-hidden">
+          <div className="w-full max-w-6xl bg-[#f4f0e6] border-4 border-[#1e1e1e] shadow-[12px_12px_0_0_#1e1e1e] relative mt-8 overflow-hidden" style={{ minHeight: "80vh" }}>
 
             {/* Top chrome bar */}
             <div className="flex items-center justify-between px-4 py-2 border-b-4 border-[#1e1e1e] bg-[#1e1e1e]">
@@ -364,7 +364,7 @@ function HomeContent() {
             </div>
 
             {/* Two-column body */}
-            <div className="flex min-h-0">
+            <div className="flex" style={{ minHeight: "calc(80vh - 44px)" }}>
               <LiveKitRoom
                 serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
                 token={token}
@@ -375,7 +375,7 @@ function HomeContent() {
                 className="flex-1 min-w-0 flex"
               >
                 {/* ── LEFT: live conversational awareness + gauges ── */}
-                <div className="w-64 shrink-0 border-r-4 border-[#1e1e1e] flex flex-col bg-[#f4f0e6] overflow-y-auto thin-scroll-light">
+                <div className="w-72 shrink-0 border-r-4 border-[#1e1e1e] flex flex-col bg-[#f4f0e6] overflow-y-auto thin-scroll-light">
                   {/* Stress gauge + conversational awareness */}
                   <div className="flex items-stretch">
                     <MissionStatus onReport={setReport} />

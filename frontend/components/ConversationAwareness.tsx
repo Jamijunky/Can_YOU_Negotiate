@@ -142,35 +142,9 @@ const ConversationAwareness = memo(function ConversationAwareness({
       <div className="p-3 border-b border-[#1e1e1e]/10">
         <div className="font-mono text-[9px] font-bold tracking-[0.18em] text-[#dc2626] uppercase mb-1.5 flex items-center gap-1.5">
           <span className="w-1 h-1 bg-[#dc2626] shrink-0" aria-hidden="true" />
-          {hasConversation ? "LAST SAID" : "SITUATION"}
+          SITUATION
         </div>
-
-        {!hasConversation ? (
-          <p className="font-serif text-[12px] text-[#1e1e1e]/65 leading-relaxed">{intel}</p>
-        ) : (
-          <div className="space-y-2">
-            {awareness.lastSubjectLine && (
-              <div>
-                <div className="font-mono text-[8px] text-[#d99a4e]/60 uppercase tracking-wider mb-0.5">
-                  {subjectName}
-                </div>
-                <p className="font-serif text-[12px] text-[#1e1e1e]/75 leading-snug line-clamp-3">
-                  &ldquo;{awareness.lastSubjectLine}&rdquo;
-                </p>
-              </div>
-            )}
-            {awareness.lastYourLine && (
-              <div>
-                <div className="font-mono text-[8px] text-[#16a34a]/60 uppercase tracking-wider mb-0.5">
-                  You
-                </div>
-                <p className="font-serif text-[11px] text-[#1e1e1e]/50 leading-snug line-clamp-2 italic">
-                  &ldquo;{awareness.lastYourLine}&rdquo;
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+        <p className="font-serif text-[12px] text-[#1e1e1e]/65 leading-relaxed">{intel}</p>
       </div>
 
       {/* ── Live conversational signals — only once conversation has data ── */}
