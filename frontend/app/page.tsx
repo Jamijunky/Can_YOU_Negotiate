@@ -340,19 +340,19 @@ function HomeContent() {
             </div>
 
             <div className="flex items-center gap-3 mt-2">
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2 cursor-pointer group">
                 <input
                   type="checkbox"
                   checked={trainingMode}
                   onChange={(e) => setTrainingMode(e.target.checked)}
-                  className="w-4 h-4 accent-[#3b82f6]"
+                  className="w-4 h-4 accent-[#d99a4e]"
                 />
-                <span className="font-mono text-xs font-bold tracking-widest text-[#1e1e1e]/70 uppercase">
+                <span className="font-mono text-xs font-bold tracking-widest text-[#1e1e1e]/70 uppercase group-hover:text-[#1e1e1e] transition-colors">
                   Training Mode
                 </span>
               </label>
-              <span className="font-serif text-xs text-[#1e1e1e]/50 italic">
-                (real-time coaching hints during negotiation)
+              <span className="font-serif text-xs text-[#1e1e1e]/40 italic">
+                real-time coaching hints
               </span>
             </div>
 
@@ -429,35 +429,79 @@ function HomeContent() {
             )}
 
             {/* Persona Dossier Preview */}
-            <div className="w-full max-w-lg mt-4 bg-white/50 p-4 border-l-4 border-[#1e1e1e] font-serif text-sm text-[#1e1e1e]/80">
-              <strong className="font-mono uppercase tracking-widest text-xs mb-1 block">
-                Intel:
-              </strong>
-              {currentIntel}
+            <div className="w-full max-w-lg mt-4 bg-[#1e1e1e]/5 border border-[#1e1e1e]/15 border-l-4 border-l-[#d99a4e] p-4 relative">
+              <div className="font-mono text-[10px] font-bold tracking-widest text-[#d99a4e] uppercase mb-2 flex items-center gap-1.5">
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    isGeneratingIntel ? "bg-[#d99a4e] animate-pulse" : "bg-[#22c55e]"
+                  }`}
+                  aria-hidden="true"
+                />
+                INTEL_PREVIEW
+              </div>
+              <p
+                className={`font-serif text-sm text-[#1e1e1e]/80 leading-relaxed transition-opacity duration-300 ${
+                  isGeneratingIntel ? "opacity-50 italic" : "opacity-100"
+                }`}
+              >
+                {currentIntel}
+              </p>
             </div>
 
-            <button
-              onClick={connect}
-              disabled={isConnecting}
-              aria-label={isConnecting ? "Connecting to negotiation room" : "Connect to negotiation"}
-              className={`px-8 py-4 font-mono font-bold text-xl uppercase tracking-widest text-[#f4f0e6] transition-all ${
-                isConnecting
-                  ? "bg-[#1e1e1e]/50 cursor-not-allowed"
-                  : "bg-[#1e1e1e] hover:bg-[#dc2626] shadow-[4px_4px_0_0_#d99a4e] hover:shadow-[2px_2px_0_0_#d99a4e] hover:translate-y-[2px] hover:translate-x-[2px]"
-              }`}
-            >
-              {isConnecting
-                ? "CONNECTING TO ROOM..."
-                : "CONNECT TO NEGOTIATION"}
-            </button>
+            <div className="flex flex-col items-center gap-3 mt-2">
+              <button
+                onClick={connect}
+                disabled={isConnecting}
+                aria-label={isConnecting ? "Connecting to negotiation room" : "Connect to negotiation"}
+                className={`px-10 py-4 font-mono font-bold text-lg uppercase tracking-widest text-[#f4f0e6] transition-all ${
+                  isConnecting
+                    ? "bg-[#1e1e1e]/40 cursor-not-allowed opacity-60"
+                    : "bg-[#1e1e1e] hover:bg-[#dc2626] shadow-[5px_5px_0_0_#d99a4e] hover:shadow-[2px_2px_0_0_#d99a4e] hover:translate-y-[3px] hover:translate-x-[3px]"
+                }`}
+              >
+                {isConnecting ? "CONNECTING..." : "CONNECT TO NEGOTIATION"}
+              </button>
+              {!isConnecting && (
+                <p className="font-mono text-[10px] text-[#1e1e1e]/35 tracking-widest uppercase">
+                  Microphone required
+                </p>
+              )}
+            </div>
           </div>
         ) : (
-          <div className="w-full max-w-4xl bg-[#f4f0e6] border-4 border-[#1e1e1e] shadow-[12px_12px_0_0_#1e1e1e] relative p-6 mt-8">
-            <div className="absolute top-0 right-0 bg-[#d99a4e] text-[#1e1e1e] font-mono text-xs font-bold px-3 py-1 border-b-4 border-l-4 border-[#1e1e1e] z-10">
-              LIVE_FEED // SUBJECT: {currentName}
+          /* ── Active session container ─────────────────────────────── */
+          <div className="w-full max-w-4xl bg-[#0f0f0f] border border-[#f4f0e6]/10 shadow-[0_0_60px_rgba(0,0,0,0.8)] relative mt-8 overflow-hidden">
+
+            {/* Subtle scanline overlay */}
+            <div
+              className="absolute inset-0 pointer-events-none z-[1]"
+              style={{
+                backgroundImage:
+                  "repeating-linear-gradient(to bottom, transparent 0px, transparent 3px, rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px)",
+              }}
+              aria-hidden="true"
+            />
+
+            {/* Top chrome bar */}
+            <div className="relative z-10 flex items-center justify-between px-4 py-2 border-b border-[#f4f0e6]/10 bg-[#1a1a1a]">
+              {/* Left — blinking live indicator */}
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#dc2626] glow-red" aria-hidden="true" />
+                <span className="font-mono text-[10px] font-bold tracking-widest text-[#f4f0e6]/50 uppercase">
+                  LIVE_FEED
+                </span>
+              </div>
+              {/* Right — subject name badge */}
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[10px] text-[#f4f0e6]/30 tracking-widest uppercase">SUBJECT:</span>
+                <span className="font-mono text-xs font-black tracking-widest text-[#d99a4e] uppercase">
+                  {currentName}
+                </span>
+              </div>
             </div>
 
-            <div className="relative flex gap-4">
+            {/* Content — stress gauge sidebar + main panels */}
+            <div className="relative z-10 flex gap-0">
               <LiveKitRoom
                 serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
                 token={token}
@@ -465,11 +509,15 @@ function HomeContent() {
                 onDisconnected={disconnect}
                 audio={true}
                 video={false}
-                className="flex-1 min-w-0"
+                className="flex-1 min-w-0 flex"
               >
-                <div className="absolute left-0 top-0 z-20">
+                {/* Stress gauge — no longer absolute; sits in its own column */}
+                <div className="shrink-0 border-r border-[#f4f0e6]/8 bg-[#141414] flex items-stretch">
                   <MissionStatus onReport={setReport} />
                 </div>
+
+                {/* Main panel column */}
+                <div className="flex-1 min-w-0 flex flex-col p-4 gap-3">
                   <LiveKitErrorBoundary>
                     <IntelDisplay intel={currentIntel} />
                   </LiveKitErrorBoundary>
@@ -493,6 +541,10 @@ function HomeContent() {
                   <LiveKitErrorBoundary>
                     <Watchdog onDisconnect={disconnect} isHolding={tacticalHold} />
                   </LiveKitErrorBoundary>
+
+                  {/* Divider before controls */}
+                  <div className="w-full h-px bg-[#f4f0e6]/8 my-1" aria-hidden="true" />
+
                   <LiveKitErrorBoundary>
                     <SimulationUI
                       subjectName={currentName}
@@ -501,15 +553,21 @@ function HomeContent() {
                       onDisconnect={disconnect}
                     />
                   </LiveKitErrorBoundary>
+
+                  {/* Divider before transcript */}
+                  <div className="w-full h-px bg-[#f4f0e6]/8 my-1" aria-hidden="true" />
+
                   <LiveKitErrorBoundary>
-                    <div className="w-full flex justify-center z-10">
+                    <div className="w-full flex justify-center">
                       <LiveTranscriptFeed subjectName={currentName} />
                     </div>
                   </LiveKitErrorBoundary>
-                  <LiveKitErrorBoundary>
-                    <RoomAudioRenderer />
-                  </LiveKitErrorBoundary>
-                </LiveKitRoom>
+                </div>
+
+                <LiveKitErrorBoundary>
+                  <RoomAudioRenderer />
+                </LiveKitErrorBoundary>
+              </LiveKitRoom>
             </div>
           </div>
         )}

@@ -4,12 +4,13 @@ import { useDataChannel } from "@livekit/components-react";
 import { memo, useCallback, useState, useEffect, useRef } from "react";
 import type { CoachingHint } from "@/lib/types";
 
+// All colors kept within the established palette
 const CATEGORY_COLORS: Record<CoachingHint["category"], string> = {
   empathy: "#22c55e",
   patience: "#d99a4e",
-  technique: "#3b82f6",
+  technique: "#f4f0e6",
   warning: "#dc2626",
-  opportunity: "#a855f7",
+  opportunity: "#c084fc",
 };
 
 const CATEGORY_LABELS: Record<CoachingHint["category"], string> = {
@@ -17,7 +18,7 @@ const CATEGORY_LABELS: Record<CoachingHint["category"], string> = {
   patience: "PATIENCE",
   technique: "TECHNIQUE",
   warning: "WARNING",
-  opportunity: "OPPORTUNITY",
+  opportunity: "OPPTY",
 };
 
 const CoachingHints = memo(function CoachingHints() {
@@ -39,10 +40,10 @@ const CoachingHints = memo(function CoachingHints() {
               timestamp: data.timestamp || Date.now(),
             },
           ];
-          return next.slice(-8); // Keep last 8 hints
+          return next.slice(-8);
         });
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
   }, []);
@@ -61,12 +62,12 @@ const CoachingHints = memo(function CoachingHints() {
 
   return (
     <div
-      className="w-full bg-[#1e1e1e] border border-[#3b82f6]/30 p-3 text-left"
+      className="w-full bg-[#1e1e1e] border border-[#d99a4e]/40 p-3 text-left"
       role="region"
       aria-label="Coaching hints"
     >
-      <div className="font-mono text-[10px] font-bold tracking-widest text-[#3b82f6] uppercase mb-2 flex items-center gap-1.5">
-        <span className="w-1.5 h-1.5 rounded-full bg-[#3b82f6] animate-pulse" aria-hidden="true" />
+      <div className="font-mono text-[10px] font-bold tracking-widest text-[#d99a4e] uppercase mb-2 flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full bg-[#d99a4e] animate-pulse" aria-hidden="true" />
         TRAINING_MODE // COACHING_HINTS
       </div>
 
@@ -78,10 +79,11 @@ const CoachingHints = memo(function CoachingHints() {
             style={{ borderColor: CATEGORY_COLORS[hint.category] }}
           >
             <span
-              className="font-mono text-[8px] font-bold px-1 py-0.5 shrink-0 mt-0.5"
+              className="font-mono text-[8px] font-bold px-1 py-0.5 shrink-0 mt-0.5 border"
               style={{
                 color: CATEGORY_COLORS[hint.category],
-                backgroundColor: `${CATEGORY_COLORS[hint.category]}15`,
+                borderColor: `${CATEGORY_COLORS[hint.category]}40`,
+                backgroundColor: `${CATEGORY_COLORS[hint.category]}12`,
               }}
             >
               {CATEGORY_LABELS[hint.category]}
@@ -91,7 +93,7 @@ const CoachingHints = memo(function CoachingHints() {
             </p>
             <button
               onClick={() => setDismissed((prev) => new Set([...prev, hint.id]))}
-              className="text-[#f4f0e6]/30 hover:text-[#f4f0e6]/60 text-xs shrink-0"
+              className="text-[#f4f0e6]/30 hover:text-[#f4f0e6]/60 text-xs shrink-0 transition-colors"
               aria-label="Dismiss hint"
             >
               &times;
