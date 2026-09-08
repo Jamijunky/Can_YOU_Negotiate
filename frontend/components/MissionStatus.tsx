@@ -16,7 +16,7 @@ const MissionStatus = memo(function MissionStatus({
 }) {
   const [surrendered, setSurrendered] = useState(false);
   const [escalated, setEscalated] = useState(false);
-  const [stress, setStress] = useState(90);
+  const [stress, setStress] = useState(85);
   const escalationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleStatusData = useCallback(
@@ -64,12 +64,13 @@ const MissionStatus = memo(function MissionStatus({
         <span className="font-mono text-[8px] font-bold text-[#1e1e1e] tracking-widest mb-1">STRESS</span>
         <div className="flex-1 w-4 bg-[#1e1e1e]/10 border border-[#1e1e1e]/30 relative overflow-hidden rounded-sm">
           <div
-            className="absolute bottom-0 left-0 right-0 transition-all duration-1000 ease-out"
-            style={{ height: `${stress}%`, backgroundColor: stressColor, boxShadow: stress > 80 ? `0 0 6px ${stressColor}` : "none" }}
+            key={stress}
+            className="absolute bottom-0 left-0 right-0 transition-[height] duration-300 ease-out"
+            style={{ height: `${stress}%`, backgroundColor: stressColor, boxShadow: stress > 80 ? `0 0 8px ${stressColor}` : "none" }}
           />
-          <div className="absolute left-0 right-0 h-px bg-[#16a34a]" style={{ bottom: `${SURRENDER_THRESHOLD_PERCENT}%` }} />
+          <div className="absolute left-0 right-0 h-px bg-[#16a34a] opacity-60" style={{ bottom: `${SURRENDER_THRESHOLD_PERCENT}%` }} />
         </div>
-        <span className="font-mono text-[10px] font-bold text-[#1e1e1e] mt-1">{stress}%</span>
+        <span className="font-mono text-[10px] font-bold text-[#1e1e1e] mt-1 tabular-nums">{stress}%</span>
         <span className="font-mono text-[6px] text-[#16a34a] mt-0.5 leading-none text-center">WIN<br/>&lt;30%</span>
       </div>
 

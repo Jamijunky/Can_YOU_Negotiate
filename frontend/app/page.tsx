@@ -13,6 +13,10 @@ import IntelDisplay from "@/components/IntelDisplay";
 import LiveTranscriptFeed from "@/components/LiveTranscriptFeed";
 import SimulationUI from "@/components/SimulationUI";
 import Watchdog from "@/components/Watchdog";
+import RelationshipDisplay from "@/components/RelationshipDisplay";
+import EscalationIndicator from "@/components/EscalationIndicator";
+import EmotionalArc from "@/components/EmotionalArc";
+import CoachingHints from "@/components/CoachingHints";
 import { ToastProvider, useToast } from "@/components/Toast";
 import { DEFAULT_SCENARIOS, PERSONA_LABELS, getDefaultName } from "@/lib/scenarios";
 import type { PersonaKey, Difficulty, ScenarioData } from "@/lib/types";
@@ -36,6 +40,7 @@ function HomeContent() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [report, setReport] = useState<string | null>(null);
+  const [trainingMode, setTrainingMode] = useState(false);
 
   const [scenarioData, setScenarioData] = useState<ScenarioData>(
     DEFAULT_SCENARIOS.robber
@@ -50,8 +55,8 @@ function HomeContent() {
 
   useEffect(() => {
     let active = true;
+    setIsGeneratingIntel(true);
     const generate = async () => {
-      if (active) setIsGeneratingIntel(true);
       const defaultData = DEFAULT_SCENARIOS[persona];
       if (defaultData && active) {
         setScenarioData(defaultData);
@@ -87,7 +92,6 @@ function HomeContent() {
     return () => {
       active = false;
       clearTimeout(timer);
-      setIsGeneratingIntel(false);
     };
   }, [persona, difficulty, refreshTrigger]);
 
@@ -112,6 +116,7 @@ function HomeContent() {
       const metaObj: Record<string, unknown> = {
         difficulty,
         dynamicScenario: true,
+        trainingMode,
         ...finalScenarioData,
       };
 
@@ -138,6 +143,7 @@ function HomeContent() {
   }, [
     persona,
     difficulty,
+    trainingMode,
     customAge,
     customProfession,
     customMotive,
@@ -326,6 +332,23 @@ function HomeContent() {
               </div>
             </div>
 
+            <div className="flex items-center gap-3 mt-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={trainingMode}
+                  onChange={(e) => setTrainingMode(e.target.checked)}
+                  className="w-4 h-4 accent-[#3b82f6]"
+                />
+                <span className="font-mono text-xs font-bold tracking-widest text-[#1e1e1e]/70 uppercase">
+                  Training Mode
+                </span>
+              </label>
+              <span className="font-serif text-xs text-[#1e1e1e]/50 italic">
+                (real-time coaching hints during negotiation)
+              </span>
+            </div>
+
             {persona === "custom" && (
               <div className="w-full max-w-xl bg-[#1e1e1e] text-[#f4f0e6] p-6 border-4 border-[#d99a4e] shadow-[8px_8px_0_0_#d99a4e] flex flex-col gap-4 mt-2">
                 <h3 className="font-mono text-sm font-bold tracking-widest text-[#d99a4e]">
@@ -440,6 +463,10 @@ function HomeContent() {
                   video={false}
                 >
                   <IntelDisplay intel={currentIntel} />
+                  <RelationshipDisplay />
+                  <EscalationIndicator />
+                  <EmotionalArc />
+                  {trainingMode && <CoachingHints />}
                   <Watchdog onDisconnect={disconnect} isHolding={tacticalHold} />
                   <SimulationUI
                     subjectName={currentName}

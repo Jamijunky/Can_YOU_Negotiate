@@ -2,7 +2,7 @@ export const BACKEND_URL = process.env.BACKEND_URL || "https://can-you-negotiate
 
 export const DISPATCH_INTERVAL_MS = 1200;
 export const DISPATCH_PROGRESS_MAX = 95;
-export const INITIAL_STRESS = 90;
+export const INITIAL_STRESS = 85;
 export const ESCALATION_DISPLAY_MS = 5000;
 export const AUDIO_CONTEXT_CLOSE_DELAY_MS = 300;
 export const MID_CALL_DROP_TIMEOUT_MS = 4000;
