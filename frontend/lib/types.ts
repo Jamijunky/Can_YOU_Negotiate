@@ -13,6 +13,13 @@ export interface Scenario {
   intel: string;
   instructions: string;
   openingLine: string;
+  primary_goal?: string;
+  secondary_goals?: string[];
+  fears?: string[];
+  beliefs?: string[];
+  secret?: string;
+  non_negotiables?: string[];
+  possible_concessions?: string[];
   communicationStyle?: {
     vocabularyComplexity: number;
     sentenceComplexity: number;
