@@ -40,9 +40,13 @@ export interface TranscriptItem {
 }
 
 export interface StatusMessage {
-  type: "surrender" | "escalate" | "stress" | "report" | "relationship";
+  type: "surrender" | "escalate" | "stress" | "report" | "relationship" | "objective" | "beliefs" | "memories";
   level?: number;
   content?: string;
+  text?: string;
+  strategy?: string;
+  beliefs?: string[];
+  memories?: string[];
 }
 
 export interface Relationship {

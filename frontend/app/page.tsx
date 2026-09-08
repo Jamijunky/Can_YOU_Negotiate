@@ -17,6 +17,7 @@ import RelationshipDisplay from "@/components/RelationshipDisplay";
 import EscalationIndicator from "@/components/EscalationIndicator";
 import EmotionalArc from "@/components/EmotionalArc";
 import CoachingHints from "@/components/CoachingHints";
+import ObjectiveDisplay from "@/components/ObjectiveDisplay";
 import { LiveKitErrorBoundary } from "@/components/LiveKitErrorBoundary";
 import { ToastProvider, useToast } from "@/components/Toast";
 import { DEFAULT_SCENARIOS, PERSONA_LABELS, getDefaultName } from "@/lib/scenarios";
@@ -477,6 +478,9 @@ function HomeContent() {
                   </LiveKitErrorBoundary>
                   <LiveKitErrorBoundary>
                     <EscalationIndicator />
+                  </LiveKitErrorBoundary>
+                  <LiveKitErrorBoundary>
+                    <ObjectiveDisplay />
                   </LiveKitErrorBoundary>
                   <LiveKitErrorBoundary>
                     <EmotionalArc />

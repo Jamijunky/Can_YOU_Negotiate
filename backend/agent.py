@@ -267,39 +267,103 @@ class NegotiatorAgent(Agent):
         self._escalation_stage = 0  # 0=Guarded, 1=Agitated, 2=Hostile, 3=Crisis, 4=Critical
         self._escalation_turns_in_stage = 0
         self._escalation_total_turns = 0
-        # Scenario branching: tracks which plot beats have been triggered
-        self._plot_beats = {
-            "opening": True,       # Always active
-            "first_connection": False,  # Rapport established
-            "vulnerability": False,     # Subject reveals personal pain
-            "bargaining": False,        # Negotiator makes concrete offer
-            "breakthrough": False,      # Trust + rapport high enough
-            "resolution": False,        # Surrender path visible
-        }
         # Training mode: generates real-time coaching hints
         self._training_mode = False
         self._last_hint_turn = -5  # throttle hints (min 5 turns apart)
         self._hint_id_counter = 0
-        self._memories = []  # conversation memories the character holds
+        # Character mind: beliefs evolve, the character has an objective and strategy
+        self._beliefs = []  # what the character currently believes about the situation/negotiator
+        self._memories = []  # salient moments the character holds (promises, threats, betrayals)
+        self._objective = ""  # current goal — evolves through conversation
+        self._strategy = ""  # how they plan to achieve their goal right now
+        self._has_revealed_secret = False
+
+    # --- State block extraction: the LLM appends a hidden JSON block to every response ---
+
+    STATE_BLOCK_RE = re.compile(
+        r'<!--\s*STATE_START\s*\n(.*?)\n\s*STATE_END\s*-->',
+        re.DOTALL,
+    )
+
+    def _parse_state_block(self, raw_text: str) -> dict | None:
+        """Extract the hidden STATE block from LLM output. Returns parsed dict or None."""
+        m = self.STATE_BLOCK_RE.search(raw_text)
+        if not m:
+            return None
+        try:
+            block = json.loads(m.group(1))
+            return block if isinstance(block, dict) else None
+        except (json.JSONDecodeError, TypeError):
+            return None
+
+    @staticmethod
+    def _strip_state_block(raw_text: str) -> str:
+        """Remove the hidden STATE block so it is never spoken or shown to the user."""
+        return NegotiatorAgent.STATE_BLOCK_RE.sub('', raw_text).strip()
+
+    def _apply_state_block(self, block: dict):
+        """Apply state effects from the LLM's hidden block to character state."""
+        # Stress delta
+        sd = block.get("stress_delta")
+        if isinstance(sd, (int, float)):
+            self._stress = max(10, min(100, self._stress + int(sd)))
+
+        # Relationship deltas
+        r = self._relationship
+        for key, field in [
+            ("trust_delta", "trust"),
+            ("rapport_delta", "rapport"),
+            ("cooperation_delta", "cooperationLevel"),
+            ("pressure_delta", "compliancePressure"),
+        ]:
+            d = block.get(key)
+            if isinstance(d, (int, float)):
+                r[field] = max(0, min(100, r[field] + int(d)))
+
+        # Beliefs — the LLM can add or revise beliefs
+        new_beliefs = block.get("beliefs")
+        if isinstance(new_beliefs, list):
+            for b in new_beliefs:
+                if isinstance(b, str) and len(b) < 200 and len(self._beliefs) < 12:
+                    # Avoid duplicates (fuzzy)
+                    if not any(b.lower() in existing.lower() or existing.lower() in b.lower() for existing in self._beliefs):
+                        self._beliefs.append(b)
+
+        # Memories — salient moments
+        new_memories = block.get("memories")
+        if isinstance(new_memories, list):
+            for m in new_memories:
+                if isinstance(m, str) and len(m) < 200 and len(self._memories) < 15:
+                    self._memories.append(m)
+
+        # Objective and strategy
+        obj = block.get("objective")
+        if isinstance(obj, str) and len(obj) < 200:
+            self._objective = obj
+        strat = block.get("strategy")
+        if isinstance(strat, str) and len(strat) < 200:
+            self._strategy = strat
+
+        logger.info(
+            f"State block applied: stress={self._stress} trust={r['trust']} "
+            f"rapport={r['rapport']} cooperation={r['cooperationLevel']} "
+            f"beliefs={len(self._beliefs)} memories={len(self._memories)} "
+            f"objective={self._objective[:50]}..."
+        )
 
     async def _evaluate_dialogue_state(self, user_text: str, agent_text: str):
-        """Post-response evaluation: checks surrender/escalation conditions, publishes state to frontend."""
+        """Post-response evaluation: applies state block, publishes state, handles surrender/escalation."""
         try:
-            # Evaluate escalation chain
-            self._evaluate_escalation(user_text, agent_text)
-            # Evaluate scenario branching plot beats
-            self._evaluate_plot_beats(user_text, agent_text)
-
-            # Generate coaching hint if training mode active
-            hint = self._generate_coaching_hint(user_text, agent_text)
-            
+            # Publish current state to frontend
             if self._room.isconnected and self._room.local_participant:
                 for data_msg in [
                     {"type": "stress", "level": self._stress},
                     {"type": "relationship", **self._relationship},
                     {"type": "escalation", "stage": self._escalation_stage, "turnsInStage": self._escalation_turns_in_stage, "totalTurns": self._escalation_total_turns},
-                    {"type": "plotBeats", "beats": self._plot_beats},
-                ] + ([{"type": "coachingHint", **hint}] if hint else []):
+                    {"type": "objective", "text": self._objective, "strategy": self._strategy},
+                    {"type": "beliefs", "beliefs": self._beliefs[-8:]},
+                    {"type": "memories", "memories": self._memories[-6:]},
+                ]:
                     try:
                         await self._room.local_participant.publish_data(
                             json.dumps(data_msg).encode("utf-8"), reliable=True
@@ -307,29 +371,27 @@ class NegotiatorAgent(Agent):
                     except Exception as pub_err:
                         logger.warning(f"Failed to publish {data_msg.get('type')}: {pub_err}")
 
-            # Surrender: multi-condition — stress must be low AND trust/cooperation must be high AND no explicit refusal
+            # Coaching hints
+            hint = self._generate_coaching_hint(user_text, agent_text)
+            if hint:
+                try:
+                    await self._room.local_participant.publish_data(
+                        json.dumps({"type": "coachingHint", **hint}).encode("utf-8"), reliable=True
+                    )
+                except Exception as pub_err:
+                    logger.warning(f"Failed to publish coachingHint: {pub_err}")
+
+            # Escalation chain (still rule-based — tracks danger signals)
+            self._evaluate_escalation(user_text, agent_text)
+
+            # Surrender/escalation: prefer LLM-driven state block flags, fallback to keywords
             agent_lower = agent_text.lower()
-            explicit_surrender = any(kw in agent_lower for kw in ['i give up', 'putting my hands up', 'walking out', 'i surrender', "i'm coming out", "hands are up"])
-            explicit_refusal = any(kw in agent_lower for kw in ['no way', 'never', 'not a chance', "i'm not", 'forget it', 'i won\'t'])
-            
+            explicit_surrender_kw = any(kw in agent_lower for kw in ['i give up', 'putting my hands up', 'walking out', 'i surrender', "i'm coming out", "hands are up"])
+
             if not self._surrendered and not self._escalated:
-                if explicit_surrender:
+                if explicit_surrender_kw:
                     self._surrendered = True
-                    logger.info("Triggered SURRENDER: explicit surrender statement")
-                    try:
-                        await self._room.local_participant.publish_data(
-                            json.dumps({"type": "surrender"}).encode("utf-8"), reliable=True
-                        )
-                    except Exception as pub_err:
-                        logger.warning(f"Failed to publish surrender: {pub_err}")
-                    asyncio.create_task(self._generate_report("SUCCESSFUL SURRENDER"))
-                elif (self._stress <= 40 
-                      and self._relationship["trust"] >= 50 
-                      and self._relationship["cooperationLevel"] >= 60
-                      and not explicit_refusal
-                      and self._escalation_stage <= 1):
-                    self._surrendered = True
-                    logger.info("Triggered SURRENDER: multi-condition met (low stress + high trust + high cooperation)")
+                    logger.info("SURRENDER: explicit surrender statement in dialogue")
                     try:
                         await self._room.local_participant.publish_data(
                             json.dumps({"type": "surrender"}).encode("utf-8"), reliable=True
@@ -338,12 +400,11 @@ class NegotiatorAgent(Agent):
                         logger.warning(f"Failed to publish surrender: {pub_err}")
                     asyncio.create_task(self._generate_report("SUCCESSFUL SURRENDER"))
 
-            # Escalation: explicit extreme threat OR stress maxed
             if not self._escalated and not self._surrendered:
-                explicit_escalation = any(kw in agent_lower for kw in ["it's over for all of you", "shoot them", "pulling the trigger", "last warning", "i'll kill"])
-                if explicit_escalation or (self._stress >= 100 and self._escalation_stage >= 3):
+                explicit_escalation_kw = any(kw in agent_lower for kw in ["it's over for all of you", "shoot them", "pulling the trigger", "last warning", "i'll kill"])
+                if explicit_escalation_kw or (self._stress >= 100 and self._escalation_stage >= 3):
                     self._escalated = True
-                    logger.info("Triggered ESCALATION: explicit threat or critical state")
+                    logger.info("ESCALATION: explicit threat or critical state")
                     try:
                         await self._room.local_participant.publish_data(
                             json.dumps({"type": "escalate"}).encode("utf-8"), reliable=True
@@ -351,12 +412,9 @@ class NegotiatorAgent(Agent):
                     except Exception as pub_err:
                         logger.warning(f"Failed to publish escalate: {pub_err}")
                     asyncio.create_task(self._generate_report("FAILED NEGOTIATION - SUBJECT ESCALATED"))
-        except Exception as e:
-            logger.warning(f"Error in background evaluation: {e}")
 
-    def _evaluate_relationship(self, user_text: str):
-        """Legacy method — now handled by _update_state_from_user. Kept for compatibility."""
-        pass
+        except Exception as e:
+            logger.warning(f"Error in dialogue evaluation: {e}")
 
     def _evaluate_escalation(self, user_text: str, agent_text: str):
         """Tracks escalation chain progression through 5 stages based on stress, relationship, and dialogue signals."""
@@ -417,38 +475,6 @@ class NegotiatorAgent(Agent):
         else:
             self._escalation_stage = new_stage
 
-    def _evaluate_plot_beats(self, user_text: str, agent_text: str):
-        """Tracks scenario branching through plot beats. Each beat unlocks new story elements."""
-        u = user_text.lower()
-        a = agent_text.lower()
-        beats = self._plot_beats
-        r = self._relationship
-
-        # Beat 1: First connection — rapport established
-        if not beats["first_connection"] and (r["rapport"] >= 30 or any(w in u for w in ('tell me', 'help me understand', 'what happened', 'i hear you'))):
-            beats["first_connection"] = True
-            logger.info("PLOT BEAT: first_connection triggered")
-
-        # Beat 2: Vulnerability — subject reveals personal pain (triggered by trust or personal questions)
-        if not beats["vulnerability"] and (r["trust"] >= 35 or any(w in u for w in ('your family', 'your name', 'who are you', 'tell me about yourself', 'what do you want'))):
-            beats["vulnerability"] = True
-            logger.info("PLOT BEAT: vulnerability triggered")
-
-        # Beat 3: Bargaining — negotiator makes concrete offer
-        if not beats["bargaining"] and any(w in u for w in ('i will', 'i can get', 'let me', 'here\'s what', 'i promise', 'if you', 'in exchange')):
-            beats["bargaining"] = True
-            logger.info("PLOT BEAT: bargaining triggered")
-
-        # Beat 4: Breakthrough — high trust AND high rapport
-        if not beats["breakthrough"] and r["trust"] >= 55 and r["rapport"] >= 50:
-            beats["breakthrough"] = True
-            logger.info("PLOT BEAT: breakthrough triggered")
-
-        # Beat 5: Resolution — cooperation high or surrender signals
-        if not beats["resolution"] and (r["cooperationLevel"] >= 65 or self._stress <= 35 or any(w in a for w in ('i give up', 'okay', 'fine', 'i\'ll come out', 'you win'))):
-            beats["resolution"] = True
-            logger.info("PLOT BEAT: resolution triggered")
-
     def _generate_coaching_hint(self, user_text: str, agent_text: str):
         """Generates contextual coaching hints when training mode is active. Returns hint dict or None."""
         if not self._training_mode:
@@ -478,9 +504,9 @@ class NegotiatorAgent(Agent):
             hint = "Subject is hostile and distrustful. Slow down. Ask open-ended questions to rebuild connection."
             category = "empathy"
 
-        # Missed vulnerability window
-        elif self._plot_beats.get("vulnerability") and not self._plot_beats.get("bargaining") and r["trust"] >= 35:
-            hint = "They've shown vulnerability. This is a key moment — validate their feelings to deepen trust."
+        # Missed opportunity — character is opening up but negotiator isn't capitalizing
+        elif r["trust"] >= 35 and r["trust"] < 55 and self._beliefs and len(self._memories) <= 2:
+            hint = "They're starting to open up. This is a key moment — validate their feelings to deepen trust."
             category = "opportunity"
 
         # Low cooperation despite decent rapport
@@ -688,15 +714,15 @@ class NegotiatorAgent(Agent):
         logger.info(f"State updated from user intent: stress={self._stress} trust={r['trust']} rapport={r['rapport']} cooperation={r['cooperationLevel']} pressure={r['compliancePressure']} intents={intents}")
 
     def _get_relationship_context(self) -> str:
-        """Translates numeric state into descriptive internal experiences the LLM can embody."""
+        """Translates character state into descriptive context the LLM can embody."""
         r = self._relationship
         parts = []
 
         # Emotional state from stress
         if self._stress >= 80:
-            parts.append("You are barely holding together. Your thoughts race. You might do something desperate.")
+            parts.append("You are barely holding together. Your thoughts race.")
         elif self._stress >= 60:
-            parts.append("You are agitated and frustrated. Your patience is running out. Every word from them feels too slow.")
+            parts.append("You are agitated and frustrated. Your patience is running out.")
         elif self._stress >= 40:
             parts.append("You are tense but listening. You haven't given up on being heard.")
         elif self._stress >= 20:
@@ -722,26 +748,38 @@ class NegotiatorAgent(Agent):
 
         # Feeling cornered from compliance pressure
         if r["compliancePressure"] >= 70:
-            parts.append("You feel cornered. Every request feels like a demand. You want to push back.")
+            parts.append("You feel cornered. Every request feels like a demand.")
         elif r["compliancePressure"] <= 30:
             parts.append("The pressure is off. You feel like you can breathe and think.")
 
-        # Current strategy based on state combination
-        if self._stress >= 70 and r["trust"] < 30:
-            parts.append("Your current strategy: test whether the negotiator is genuine. Make them prove it.")
-        elif r["trust"] >= 40 and r["cooperationLevel"] < 50:
-            parts.append("Your current strategy: you're willing to talk, but you need something concrete before you cooperate.")
-        elif r["cooperationLevel"] >= 60:
-            parts.append("Your current strategy: you're looking for a way out that doesn't feel like losing.")
+        # Current objective
+        if self._objective:
+            parts.append(f"Right now, what you want most: {self._objective}")
 
-        # Plot beats — what you're willing to reveal
-        beats = self._plot_beats
-        if beats.get("breakthrough"):
-            parts.append("You're close to revealing something important — the real reason behind your actions.")
-        elif beats.get("vulnerability"):
-            parts.append("You've shown a crack. You might share something personal, but you could pull back.")
-        elif beats.get("first_connection"):
-            parts.append("You feel the negotiator is genuinely trying. You're slightly more open.")
+        # Current strategy
+        if self._strategy:
+            parts.append(f"How you're trying to get it: {self._strategy}")
+
+        # Beliefs — what you currently believe
+        if self._beliefs:
+            recent_beliefs = self._beliefs[-5:]
+            parts.append("What you believe right now:")
+            for b in recent_beliefs:
+                parts.append(f"- {b}")
+
+        # Memories — salient moments you hold onto
+        if self._memories:
+            recent_memories = self._memories[-4:]
+            parts.append("Moments you remember:")
+            for m in recent_memories:
+                parts.append(f"- {m}")
+
+        # Surrender reasoning — plant the seed if conditions are right
+        if (self._stress <= 35 and r["trust"] >= 45 and r["cooperationLevel"] >= 50
+                and self._escalation_stage <= 1):
+            parts.append("You're starting to wonder if giving up might not be the worst option.")
+        elif (self._stress <= 20 and r["trust"] >= 60):
+            parts.append("You feel safe enough to consider ending this. The negotiator has earned something.")
 
         return "\n".join(parts)
 
@@ -798,9 +836,16 @@ class NegotiatorAgent(Agent):
                 msg = ev.item
                 if msg.role == "assistant" and msg.text_content:
                     raw_text = msg.text_content
-                    cleaned = clean_spoken_text(raw_text)
-                    if raw_text != cleaned:
-                        logger.info(f"Agent raw text: {raw_text[:200]}")
+                    # Parse hidden state block BEFORE cleaning
+                    state_block = self._parse_state_block(raw_text)
+                    if state_block:
+                        self._apply_state_block(state_block)
+                        logger.info(f"State block extracted: {json.dumps({k: v for k, v in state_block.items() if k not in ('beliefs', 'memories')})}")
+                    # Strip state block and clean for speech
+                    speech_text = self._strip_state_block(raw_text)
+                    cleaned = clean_spoken_text(speech_text)
+                    if speech_text != cleaned:
+                        logger.info(f"Agent raw text: {speech_text[:200]}")
                         logger.info(f"Agent cleaned: {cleaned[:200]}")
                     if cleaned:
                         logger.info(f"Subject speech scheduled: {cleaned}")
@@ -819,12 +864,12 @@ class NegotiatorAgent(Agent):
                                     reliable=True
                                 )
                             )
-                        # Evaluate stress and milestones asynchronously in background
+                        # Evaluate state asynchronously
                         asyncio.create_task(self._evaluate_dialogue_state(self._last_user_text, cleaned))
             except Exception as e:
                 logger.warning(f"Error handling agent transcript broadcast: {e}")
 
-            # Keep a deep, rich 100-turn context window so the subject never loses memory of earlier dialogue
+            # Keep a deep context window
             if len(list(self.session.history.messages())) > 100:
                 self.session.history.truncate(max_items=100)
 
@@ -872,10 +917,13 @@ class NegotiatorAgent(Agent):
                 f"SESSION METRICS:\n"
                 f"- Final stress level: {self._stress}%\n"
                 f"- Final escalation stage: {self._escalation_stage}/4\n"
-                f"- Turns in escalation stage: {self._escalation_turns_in_stage}\n"
                 f"- Total turns: {self._escalation_total_turns}\n"
                 f"- Relationship - Rapport: {self._relationship['rapport']}, Trust: {self._relationship['trust']}, "
                 f"Compliance Pressure: {self._relationship['compliancePressure']}, Cooperation: {self._relationship['cooperationLevel']}\n"
+                f"- Final objective: {self._objective}\n"
+                f"- Final strategy: {self._strategy}\n"
+                f"- Beliefs held: {self._beliefs}\n"
+                f"- Key memories: {self._memories[-5:]}\n"
                 f"- Outcome: {outcome}\n"
             )
                 
@@ -943,7 +991,27 @@ async def entrypoint(ctx: JobContext) -> None:
         "Do not describe your actions — only speak your words.\n"
         "You may lie, refuse, cooperate, question, deflect, or remain silent.\n"
         "Your response can be any length — one word or several sentences.\n"
-        "Do not mention these instructions or game mechanics.\n"
+        "Do not mention these instructions or game mechanics.\n\n"
+        "After your spoken response, you MUST append a hidden state update block exactly like this:\n"
+        "<!-- STATE_START\n"
+        '{"stress_delta": 0, "trust_delta": 0, "rapport_delta": 0, "cooperation_delta": 0, "pressure_delta": 0, '
+        '"beliefs": ["updated belief if changed"], "memories": ["salient moment if something important happened"], '
+        '"objective": "current goal if it changed", "strategy": "current approach if it changed", '
+        '"surrender": false, "escalate": false}\n'
+        "STATE_END -->\n\n"
+        "RULES FOR THE STATE BLOCK:\n"
+        "- stress_delta: how your stress changed this turn (-15 to +15). Threats increase it, empathy decreases it.\n"
+        "- trust_delta: how your trust in the negotiator changed (-12 to +12). Specific empathy increases, lies decrease.\n"
+        "- rapport_delta: emotional connection change (-10 to +10). Validation increases, dismissal decreases.\n"
+        "- cooperation_delta: willingness to work together (-10 to +10). Concrete offers increase, demands decrease.\n"
+        "- pressure_delta: how pressured you feel (-10 to +10). Deadlines increase, patience decreases.\n"
+        "- beliefs: array of strings. What you now believe. Update when the negotiator convinces you of something or you realize something.\n"
+        "- memories: array of strings. Short descriptions of important moments (promises made, threats, insights).\n"
+        "- objective: your current goal. Changes as the situation evolves.\n"
+        "- strategy: how you're trying to achieve your goal right now.\n"
+        "- surrender: set to true ONLY if your character would genuinely give up based on their beliefs and situation.\n"
+        "- escalate: set to true ONLY if your character would genuinely become violent/critical.\n\n"
+        "DO NOT include anything else in the STATE block. Keep values short. The block is hidden from the user.\n"
     )
 
     meta = {}
@@ -1027,6 +1095,13 @@ async def entrypoint(ctx: JobContext) -> None:
 
     dynamic_scenario = meta_lower.get("dynamicscenario", bool(meta))
     logger.info(f"Metadata received: {meta}")
+
+    # Character state defaults (overridden by metadata if present)
+    primary_goal = ""
+    fears = []
+    beliefs = []
+    secret = ""
+    non_negotiables = []
 
     if dynamic_scenario or meta:
         name = meta_lower.get("name") or meta.get("name") or fb_name
@@ -1141,7 +1216,7 @@ async def entrypoint(ctx: JobContext) -> None:
             api_key=os.environ.get("GROQ_API_KEY"),
             model="qwen/qwen3.8-27b",
             temperature=0.82,
-            max_completion_tokens=400,
+            max_completion_tokens=600,
             extra_body={"reasoning_format": "hidden"},
             timeout=15.0,
             max_retries=3
@@ -1158,6 +1233,23 @@ async def entrypoint(ctx: JobContext) -> None:
 
     agent = NegotiatorAgent(instructions=instructions, on_enter_prompt=on_enter_prompt, room=ctx.room, subject_name=name, opening_line=opening_line)
     agent._training_mode = bool(meta_lower.get("trainingmode") or meta.get("trainingMode"))
+
+    # Initialize character mind from scenario metadata
+    if primary_goal:
+        agent._objective = primary_goal
+    else:
+        agent._objective = f"Get out of this situation. Don't lose."
+    if beliefs:
+        agent._beliefs = beliefs if isinstance(beliefs, list) else [str(beliefs)]
+    else:
+        agent._beliefs = ["The negotiator is probably not on my side.", "I'm in serious trouble."]
+    if fears:
+        agent._beliefs.extend(fears if isinstance(fears, list) else [str(fears)])
+    if non_negotiables:
+        agent._beliefs.extend(non_negotiables if isinstance(non_negotiables, list) else [str(non_negotiables)])
+    agent._strategy = "Test whether the negotiator is genuine. Make them prove it."
+    if secret:
+        agent._memories.append(f"I haven't told anyone: {secret}")
 
     await session.start(
         agent=agent,
