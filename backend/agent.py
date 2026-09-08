@@ -24,10 +24,25 @@ import json
 import time
 
 # Import plugins eagerly on main thread — LiveKit requires this
+from livekit.plugins import silero as _silero_module
 from livekit.plugins import google as _google_module
 from livekit.plugins import rime as _rime_module
 from livekit.plugins import openai as _openai_module
 from livekit.plugins import deepgram as _deepgram_module
+
+PRELOADED_VAD = None
+
+
+def _ensure_vad():
+    global PRELOADED_VAD
+    if PRELOADED_VAD is None:
+        PRELOADED_VAD = _silero_module.VAD.load(
+            min_speech_duration=0.3,
+            min_silence_duration=0.8,
+            prefix_padding_duration=0.3,
+            activation_threshold=0.7
+        )
+    return PRELOADED_VAD
 
 FEMALE_VOICES = {
     'aggressive': ['astra', 'lyra', 'breeze'],
@@ -998,6 +1013,7 @@ async def entrypoint(ctx: JobContext) -> None:
     logger.info(f"[TIMING] metadata parsed + instructions built in {time.time()-t0:.2f}s | opening_line='{opening_line}'")
 
     session = AgentSession(
+        vad=_ensure_vad(),
         turn_handling={
             "endpointing": {"min_delay": 0.15, "max_delay": 0.5},
             "interruption": {
