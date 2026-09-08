@@ -451,18 +451,19 @@ function HomeContent() {
               LIVE_FEED // SUBJECT: {currentName}
             </div>
 
-            <div className="flex gap-4">
-              <MissionStatus onReport={setReport} />
-
-              <div className="flex-1 min-w-0">
-                <LiveKitRoom
-                  serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
-                  token={token}
-                  connect={!!token}
-                  onDisconnected={disconnect}
-                  audio={true}
-                  video={false}
-                >
+            <div className="relative flex gap-4">
+              <LiveKitRoom
+                serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
+                token={token}
+                connect={!!token}
+                onDisconnected={disconnect}
+                audio={true}
+                video={false}
+                className="flex-1 min-w-0"
+              >
+                <div className="absolute left-0 top-0 z-20">
+                  <MissionStatus onReport={setReport} />
+                </div>
                   <LiveKitErrorBoundary>
                     <IntelDisplay intel={currentIntel} />
                   </LiveKitErrorBoundary>
@@ -500,7 +501,6 @@ function HomeContent() {
                     <RoomAudioRenderer />
                   </LiveKitErrorBoundary>
                 </LiveKitRoom>
-              </div>
             </div>
           </div>
         )}
