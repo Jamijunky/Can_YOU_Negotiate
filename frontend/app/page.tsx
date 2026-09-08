@@ -133,20 +133,16 @@ function HomeContent() {
 
   return (
     <main
-      className={`min-h-screen flex flex-col items-center justify-start overflow-x-hidden relative py-12 px-4 transition-colors duration-700 ${
-        token ? "bg-[#0f0f0f]" : "bg-[#f4f0e6]"
-      }`}
+      className="min-h-screen flex flex-col items-center justify-start overflow-x-hidden relative py-12 px-4 bg-[#f4f0e6]"
     >
       {/* Background EKG line */}
       <div
-        className={`fixed top-0 left-0 bottom-0 w-48 md:w-64 pointer-events-none transition-opacity duration-700 ${
-          token ? "opacity-[0.02]" : "opacity-[0.04]"
-        }`}
+        className="fixed top-0 left-0 bottom-0 w-48 md:w-64 pointer-events-none opacity-[0.04]"
         aria-hidden="true"
       >
         <svg
           viewBox="0 0 300 1200"
-          className={`w-full h-full fill-none ${token ? "stroke-[#f4f0e6]" : "stroke-black"}`}
+          className="w-full h-full fill-none stroke-black"
           strokeWidth="8"
           preserveAspectRatio="none"
         >

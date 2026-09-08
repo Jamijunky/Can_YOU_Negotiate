@@ -69,7 +69,11 @@ const SimulationUI = memo(function SimulationUI({
     ? "HOLD // THINK TIME"
     : isDispatching
     ? DISPATCH_MESSAGES[dispatchStep]
-    : effectiveState.toUpperCase();
+    : effectiveState === "listening" ? "LISTENING"
+    : effectiveState === "speaking"  ? "SPEAKING"
+    : effectiveState === "thinking"  ? "THINKING..."
+    : effectiveState === "idle"      ? "STANDBY"
+    : (effectiveState as string).toUpperCase();
 
   const statusColor = tacticalHold     ? "#d99a4e"
     : effectiveState === "speaking"    ? "#d99a4e"
