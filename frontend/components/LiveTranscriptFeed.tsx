@@ -34,7 +34,7 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
             const lastItem =
               prev.length > 0 ? prev[prev.length - 1] : null;
 
-            // Deduplicate: skip if same, subset, or significant word overlap within 8s
+            // Deduplicate: only skip exact duplicates within 8s
             const MERGE_WINDOW_MS = 8000;
             if (
               lastItem &&
@@ -42,15 +42,7 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
             ) {
               const prevNorm = lastItem.text.toLowerCase().trim();
               const currNorm = data.text.toLowerCase().trim();
-              // Exact match or subset
-              if (currNorm === prevNorm || prevNorm.includes(currNorm) || currNorm.includes(prevNorm)) {
-                return prev;
-              }
-              // Word overlap check: if >60% of words overlap, skip
-              const prevWords = new Set(prevNorm.split(/\s+/));
-              const currWords = currNorm.split(/\s+/);
-              const overlap = currWords.filter((w: string) => prevWords.has(w)).length;
-              if (currWords.length > 0 && overlap / currWords.length > 0.6) {
+              if (currNorm === prevNorm) {
                 return prev;
               }
             }
