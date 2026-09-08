@@ -52,9 +52,9 @@ This is a realistic, high-stakes voice interaction — not a chatbot with a micr
 |--------|--------|----------|
 | VAD detection of user barge-in | < 300ms | ~300ms |
 | Rime audio stop (silence) | < 350ms | ~250-350ms |
-| Transcript cutoff consistency | Matches audio | ✓ Transcript shows `...` at cutoff point |
-| AI context discard | Unspoken words removed | ✓ Agent receives interrupt signal, discards unsaid text |
-| Next AI response | Reacts to interruption | ✓ Subject pushes back: *"Don't tell me to breathe!"* |
+| Transcript cutoff consistency | Matches audio | PASS - Transcript shows `...` at cutoff point |
+| AI context discard | Unspoken words removed | PASS - Agent receives interrupt signal, discards unsaid text |
+| Next AI response | Reacts to interruption | PASS - Subject pushes back: *"Don't tell me to breathe!"* |
 
 ### Result
 **PASS.** The subject's Rime audio cuts off promptly when the negotiator interrupts. The transcript reflects only what was spoken. The AI's next response acknowledges the interruption naturally. The negotiation continues without requiring a restart.
