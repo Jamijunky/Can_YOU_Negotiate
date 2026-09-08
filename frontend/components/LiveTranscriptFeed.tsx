@@ -34,22 +34,6 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
             second: "2-digit",
           });
           setTranscripts((prev) => {
-            // Update existing item by ID (interim → final for same utterance)
-            if (data.id) {
-              const idx = prev.findIndex((item) => item.id === data.id);
-              if (idx !== -1) {
-                const updated = [...prev];
-                updated[idx] = {
-                  ...updated[idx],
-                  text: data.text,
-                  isFinal: data.isFinal ?? true,
-                  finalizedAt: data.isFinal ? now : updated[idx].finalizedAt,
-                  timestamp: timeStr,
-                };
-                return updated;
-              }
-            }
-
             // Merge consecutive user messages within 5s of each other
             const lastItem =
               prev.length > 0 ? prev[prev.length - 1] : null;
@@ -65,8 +49,8 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
                 ...lastItem,
                 id: data.id || lastItem.id,
                 text: lastItem.text + " " + data.text,
-                isFinal: data.isFinal ?? true,
-                finalizedAt: data.isFinal ? now : lastItem.finalizedAt,
+                isFinal: true,
+                finalizedAt: now,
                 timestamp: timeStr,
               };
               return updated;
@@ -86,8 +70,8 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
                     : subjectName || data.senderName || "SUBJECT",
                 text: data.text,
                 timestamp: timeStr,
-                isFinal: data.isFinal ?? true,
-                finalizedAt: data.isFinal ? now : 0,
+                isFinal: true,
+                finalizedAt: now,
               },
             ];
           });
@@ -146,10 +130,7 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
                       : "text-[#d99a4e] font-bold"
                   }
                 >
-                  [{t.senderName}]{" "}
-                  {t.speaker === "user" && t.isFinal === false && (
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-ping" />
-                  )}
+                  [{t.senderName}]
                 </span>
                 <span>{t.timestamp}</span>
               </div>

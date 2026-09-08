@@ -695,24 +695,23 @@ class NegotiatorAgent(Agent):
                 return
             if ev.is_final:
                 self._last_user_text = transcript
-            try:
-                if self._room.isconnected and self._room.local_participant:
-                    item_id = str(getattr(ev, 'item_id', None) or f"user-{time.time()}")
-                    asyncio.create_task(
-                        self._room.local_participant.publish_data(
-                            json.dumps({
-                                "type": "transcript",
-                                "id": item_id,
-                                "speaker": "user",
-                                "senderName": "YOU",
-                                "text": transcript,
-                                "isFinal": bool(ev.is_final)
-                            }).encode("utf-8"),
-                            reliable=bool(ev.is_final)
+                try:
+                    if self._room.isconnected and self._room.local_participant:
+                        asyncio.create_task(
+                            self._room.local_participant.publish_data(
+                                json.dumps({
+                                    "type": "transcript",
+                                    "id": f"user-{time.time()}",
+                                    "speaker": "user",
+                                    "senderName": "YOU",
+                                    "text": transcript,
+                                    "isFinal": True
+                                }).encode("utf-8"),
+                                reliable=True
+                            )
                         )
-                    )
-            except Exception as e:
-                logger.warning(f"Failed to publish user transcript: {e}")
+                except Exception as e:
+                    logger.warning(f"Failed to publish user transcript: {e}")
 
         @self.session.on("conversation_item_added")
         def _on_item_added(ev):
