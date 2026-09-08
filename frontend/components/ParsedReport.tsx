@@ -3,7 +3,6 @@
 import ReactMarkdown from "react-markdown";
 import { memo } from "react";
 
-const SECTION_REGEX = /\*\*(.*?)\*\*\n([\s\S]*?)(?=\*\*[A-Z]|\n*$)/g;
 const GRADE_REGEX = /\*\*(.*?):\*\*\s*(.*)/;
 
 function extractSections(text: string): { title: string; content: string }[] {
@@ -16,108 +15,121 @@ function extractSections(text: string): { title: string; content: string }[] {
   return sections;
 }
 
+// Letter grade → stamp color + label
+function gradeStamp(letter: string): { bg: string; border: string; text: string; label: string } {
+  const l = letter.charAt(0).toUpperCase();
+  if (l === "A") return { bg: "rgba(39,174,96,0.08)",  border: "#27ae60", text: "#27ae60",  label: "EXCELLENT" };
+  if (l === "B") return { bg: "rgba(200,137,62,0.08)", border: "#c8893e", text: "#c8893e",  label: "ADEQUATE" };
+  if (l === "C") return { bg: "rgba(200,137,62,0.06)", border: "rgba(200,137,62,0.5)", text: "rgba(200,137,62,0.7)", label: "MARGINAL" };
+  if (l === "D") return { bg: "rgba(192,57,43,0.08)", border: "#c0392b", text: "#c0392b", label: "POOR" };
+  return { bg: "rgba(192,57,43,0.12)", border: "#c0392b", text: "#c0392b", label: "FAILED" };
+}
+
 const ParsedReport = memo(function ParsedReport({ text }: { text: string }) {
   const sections = extractSections(text);
 
-  // Find specific sections
-  const gradingSection = sections.find((s) => s.title.includes("Grading Summary"));
-  const adviceSection = sections.find((s) => s.title.includes("Advice"));
+  const gradingSection    = sections.find((s) => s.title.includes("Grading Summary"));
+  const adviceSection     = sections.find((s) => s.title.includes("Advice"));
   const keyMomentsSection = sections.find((s) => s.title.includes("Key Moments"));
-  const subjectProfileSection = sections.find((s) => s.title.includes("Subject Profile"));
+  const profileSection    = sections.find((s) => s.title.includes("Subject Profile"));
 
-  const gradingLines = gradingSection ? gradingSection.content.split("\n") : [];
-  const gradeItems = gradingLines
+  const gradeItems = (gradingSection?.content.split("\n") ?? [])
     .map((line) => {
       const match = line.match(GRADE_REGEX);
-      if (match) {
-        return {
-          category: match[1].replace(/\*/g, "").trim(),
-          grade: match[2].trim(),
-        };
-      }
-      return null;
+      return match ? { category: match[1].replace(/\*/g, "").trim(), grade: match[2].trim() } : null;
     })
     .filter(Boolean) as { category: string; grade: string }[];
 
+  // Fallback: raw markdown
   if (gradeItems.length === 0 && !adviceSection) {
     return (
-      <div className="font-serif prose prose-sm text-[#1e1e1e]">
+      <div className="font-mono text-xs text-white/50 leading-relaxed prose-invert">
         <ReactMarkdown>{text}</ReactMarkdown>
       </div>
     );
   }
 
   return (
-    <div className="w-full flex flex-col gap-6">
-      {/* Grading Grid */}
+    <div className="space-y-6">
+
+      {/* ── Grading grid ── */}
       {gradeItems.length > 0 && (
-        <div
-          className="grid grid-cols-1 gap-4 bg-white/40 p-6 border-2 border-[#1e1e1e] shadow-[4px_4px_0_0_#1e1e1e]"
-          role="list"
-          aria-label="Grading summary"
-        >
-          {gradeItems.map((item, i) => {
-            const letter = item.grade.charAt(0).toUpperCase();
-            const isGood = letter === "A" || letter === "B";
-            const isMid = letter === "C";
-            return (
-              <div
-                key={i}
-                role="listitem"
-                className="flex justify-between items-center border-b-2 border-[#1e1e1e]/10 pb-3 last:border-0 last:pb-0"
-              >
-                <span className="font-serif font-bold text-lg text-[#1e1e1e] uppercase tracking-wide">
-                  {item.category}
-                </span>
-                <span
-                  className={`font-mono font-black text-2xl px-4 py-1 border-2 border-[#1e1e1e] shadow-[2px_2px_0_0_#1e1e1e] ${
-                    isGood
-                      ? "bg-[#4ade80]"
-                      : isMid
-                        ? "bg-[#facc15]"
-                        : "bg-[#dc2626] text-white"
-                  }`}
-                  aria-label={`${item.category}: ${item.grade}`}
+        <div>
+          <div className="font-mono text-[9px] tracking-[0.2em] text-white/20 uppercase mb-3">
+            Performance Assessment
+          </div>
+          <div className="space-y-0" role="list" aria-label="Grading summary">
+            {gradeItems.map((item, i) => {
+              const stamp = gradeStamp(item.grade);
+              return (
+                <div
+                  key={i}
+                  role="listitem"
+                  className="flex items-center justify-between py-2.5 border-b border-white/6 last:border-0"
                 >
-                  {item.grade}
-                </span>
-              </div>
-            );
-          })}
+                  <span className="font-mono text-[11px] text-white/50 uppercase tracking-wider">
+                    {item.category}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <span
+                      className="font-mono text-[9px] tracking-[0.15em] uppercase"
+                      style={{ color: stamp.text, opacity: 0.6 }}
+                    >
+                      {stamp.label}
+                    </span>
+                    {/* Stamped grade */}
+                    <span
+                      className="font-mono text-sm font-black px-2 py-0.5 border"
+                      style={{
+                        color: stamp.text,
+                        borderColor: stamp.border,
+                        backgroundColor: stamp.bg,
+                        transform: `rotate(${(i % 3) - 1}deg)`,
+                        display: "inline-block",
+                      }}
+                      aria-label={`${item.category}: ${item.grade}`}
+                    >
+                      {item.grade}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
-      {/* Key Moments */}
+      {/* ── Key Moments ── */}
       {keyMomentsSection && (
-        <div className="bg-[#1e1e1e] text-[#f4f0e6] p-6 border-2 border-[#d99a4e] shadow-[4px_4px_0_0_#d99a4e]">
-          <h4 className="font-mono uppercase tracking-widest text-sm font-black mb-3 text-[#d99a4e]">
+        <div>
+          <div className="font-mono text-[9px] tracking-[0.2em] text-white/20 uppercase mb-2">
             Key Moments
-          </h4>
-          <div className="font-serif text-sm leading-relaxed space-y-2">
+          </div>
+          <div className="border-l border-white/10 pl-4 font-mono text-[11px] text-white/40 leading-relaxed space-y-1 [&_strong]:text-white/60 [&_strong]:font-bold [&_li]:list-none [&_li]:pl-0 [&_li::before]:content-['—_'] [&_li::before]:opacity-40">
             <ReactMarkdown>{keyMomentsSection.content}</ReactMarkdown>
           </div>
         </div>
       )}
 
-      {/* Subject Profile */}
-      {subjectProfileSection && (
-        <div className="bg-white/60 p-6 border-l-8 border-[#d99a4e] shadow-[4px_4px_0_0_#1e1e1e]">
-          <h4 className="font-mono uppercase tracking-widest text-sm font-black mb-3 text-[#1e1e1e]">
+      {/* ── Subject Profile ── */}
+      {profileSection && (
+        <div>
+          <div className="font-mono text-[9px] tracking-[0.2em] text-white/20 uppercase mb-2">
             Subject Profile
-          </h4>
-          <div className="font-serif text-[#1e1e1e]/90 leading-relaxed">
-            <ReactMarkdown>{subjectProfileSection.content}</ReactMarkdown>
+          </div>
+          <div className="font-mono text-[11px] text-white/35 leading-relaxed [&_strong]:text-white/55 [&_strong]:font-bold">
+            <ReactMarkdown>{profileSection.content}</ReactMarkdown>
           </div>
         </div>
       )}
 
-      {/* Advice */}
+      {/* ── Actionable Advice ── */}
       {adviceSection && (
-        <div className="bg-white/80 p-6 border-l-8 border-[#1e1e1e] shadow-[4px_4px_0_0_#1e1e1e]">
-          <h4 className="font-mono uppercase tracking-widest text-sm font-black mb-3 text-[#dc2626]">
-            Actionable Advice
-          </h4>
-          <div className="font-serif text-[#1e1e1e]/90 leading-relaxed">
+        <div>
+          <div className="font-mono text-[9px] tracking-[0.2em] text-[#c0392b]/50 uppercase mb-2">
+            Recommendations
+          </div>
+          <div className="border-l-2 border-[#c0392b]/20 pl-4 font-mono text-[11px] text-white/40 leading-relaxed space-y-1 [&_strong]:text-white/60 [&_strong]:font-bold">
             <ReactMarkdown>{adviceSection.content}</ReactMarkdown>
           </div>
         </div>

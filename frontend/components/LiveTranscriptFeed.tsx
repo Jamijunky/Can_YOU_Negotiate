@@ -11,11 +11,10 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
 }) {
   const [transcripts, setTranscripts] = useState<TranscriptItem[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [transcripts]);
 
   const handleData = useCallback(
@@ -31,38 +30,26 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
             second: "2-digit",
           });
           setTranscripts((prev) => {
-            const lastItem =
-              prev.length > 0 ? prev[prev.length - 1] : null;
-
-            // Deduplicate: only skip exact duplicates within 8s
+            const last = prev.length > 0 ? prev[prev.length - 1] : null;
             const MERGE_WINDOW_MS = 8000;
-            if (
-              lastItem &&
-              now - lastItem.finalizedAt < MERGE_WINDOW_MS
-            ) {
-              const prevNorm = lastItem.text.toLowerCase().trim();
-              const currNorm = data.text.toLowerCase().trim();
-              if (currNorm === prevNorm) {
-                return prev;
-              }
+
+            // Exact duplicate
+            if (last && now - last.finalizedAt < MERGE_WINDOW_MS) {
+              if (data.text.toLowerCase().trim() === last.text.toLowerCase().trim()) return prev;
             }
 
-            // Merge consecutive short user messages within 5s
+            // Merge consecutive user messages
             if (
               data.speaker === "user" &&
-              lastItem &&
-              lastItem.speaker === "user" &&
-              now - lastItem.finalizedAt < MERGE_WINDOW_MS
+              last?.speaker === "user" &&
+              now - last.finalizedAt < MERGE_WINDOW_MS
             ) {
-              // Skip if new text is already part of existing text
-              if (lastItem.text.toLowerCase().includes(data.text.toLowerCase().toLowerCase())) {
-                return prev;
-              }
+              if (last.text.toLowerCase().includes(data.text.toLowerCase())) return prev;
               const updated = [...prev];
               updated[updated.length - 1] = {
-                ...lastItem,
-                id: data.id || lastItem.id,
-                text: lastItem.text + " " + data.text,
+                ...last,
+                id: data.id || last.id,
+                text: last.text + " " + data.text,
                 isFinal: true,
                 finalizedAt: now,
                 timestamp: timeStr,
@@ -70,18 +57,12 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
               return updated;
             }
 
-            // New transcript entry
             return [
               ...prev,
               {
-                id:
-                  data.id ||
-                  `${data.speaker}-${now}-${Math.random().toString(36).slice(2)}`,
+                id: data.id || `${data.speaker}-${now}-${Math.random().toString(36).slice(2)}`,
                 speaker: data.speaker,
-                senderName:
-                  data.speaker === "user"
-                    ? "YOU"
-                    : subjectName || data.senderName || "SUBJECT",
+                senderName: data.speaker === "user" ? "YOU" : subjectName || data.senderName || "SUBJECT",
                 text: data.text,
                 timestamp: timeStr,
                 isFinal: true,
@@ -91,7 +72,7 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
           });
         }
       } catch (e) {
-        console.error("Failed to parse transcript data channel message:", e);
+        console.error("Failed to parse transcript message:", e);
       }
     },
     [subjectName]
@@ -101,55 +82,101 @@ const LiveTranscriptFeed = memo(function LiveTranscriptFeed({
 
   return (
     <div
-      className={`w-full max-w-2xl mt-6 bg-[#1e1e1e] border-2 border-[#d99a4e] p-4 text-left shadow-[6px_6px_0_0_#1e1e1e] transition-opacity duration-300`}
+      className="flex flex-col h-full bg-[#0a0a0a]"
       role="log"
       aria-label="Live conversation transcript"
       aria-live="polite"
     >
-      <div className="flex items-center justify-between border-b border-[#f4f0e6]/20 pb-2 mb-3">
-        <div className="font-mono text-xs font-bold tracking-widest text-[#d99a4e] uppercase flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse" aria-hidden="true" />
-          <span>COMMS_LOG // LIVE_TRANSCRIPT</span>
+      {/* Header */}
+      <div className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-white/8">
+        <div className="flex items-center gap-2">
+          <span
+            className="w-1.5 h-1.5 rounded-full bg-[#27ae60]"
+            style={{ animation: "pulse-green 2s ease-in-out infinite" }}
+            aria-hidden="true"
+          />
+          <span className="font-mono text-[9px] tracking-[0.2em] text-white/30 uppercase">
+            Comms Log
+          </span>
         </div>
-        <span className="font-mono text-[10px] text-[#f4f0e6]/50 uppercase">
-          CONVERSATION STREAM
+        <span className="font-mono text-[9px] text-white/15 tracking-widest uppercase">
+          {transcripts.length} {transcripts.length === 1 ? "entry" : "entries"}
         </span>
       </div>
 
+      {/* Transcript entries */}
       <div
         ref={scrollRef}
-        className="h-44 overflow-y-auto space-y-2 pr-1 flex flex-col select-text font-mono text-xs"
+        className="flex-1 overflow-y-auto thin-scroll px-4 py-3 space-y-0"
       >
         {transcripts.length === 0 ? (
-          <div className="text-[#f4f0e6]/40 italic py-6 text-center">
-            [Audio channel open. Speak into microphone to negotiate...]
+          <div className="flex flex-col items-center justify-center h-full gap-3 select-none">
+            <div className="font-mono text-[10px] text-white/15 tracking-[0.2em] uppercase text-center leading-relaxed">
+              Audio channel open<br />
+              <span className="text-white/10">Speak to begin negotiation</span>
+            </div>
+            {/* Idle waveform placeholder */}
+            <div className="flex items-end gap-px h-6" aria-hidden="true">
+              {Array.from({ length: 18 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="w-px bg-white/8"
+                  style={{ height: `${4 + Math.sin(i * 0.8) * 3}px` }}
+                />
+              ))}
+            </div>
           </div>
         ) : (
-          transcripts.map((t) => (
-            <div
-              key={t.id}
-              className={`p-2 border-l-2 leading-relaxed transition-all duration-150 ${
-                t.speaker === "user"
-                  ? "border-[#22c55e] bg-white/5 text-[#f4f0e6]"
-                  : "border-[#d99a4e] bg-[#d99a4e]/10 text-[#f4f0e6]"
-              }`}
-            >
-              <div className="flex items-center justify-between text-[10px] mb-1 opacity-70">
-                <span
-                  className={
-                    t.speaker === "user"
-                      ? "text-[#22c55e] font-bold flex items-center gap-1.5"
-                      : "text-[#d99a4e] font-bold"
-                  }
-                >
-                  [{t.senderName}]
-                </span>
-                <span>{t.timestamp}</span>
+          transcripts.map((t, idx) => {
+            const isUser = t.speaker === "user";
+            const prevSpeaker = idx > 0 ? transcripts[idx - 1].speaker : null;
+            const speakerChanged = prevSpeaker !== t.speaker;
+
+            return (
+              <div
+                key={t.id}
+                className={`${speakerChanged && idx > 0 ? "mt-4" : "mt-1"}`}
+              >
+                {/* Speaker + timestamp — only shown when speaker changes */}
+                {speakerChanged && (
+                  <div className={`flex items-center gap-2 mb-1 ${isUser ? "flex-row-reverse" : ""}`}>
+                    <span
+                      className="font-mono text-[9px] font-bold tracking-[0.15em] uppercase"
+                      style={{ color: isUser ? "#27ae60" : "#c8893e" }}
+                    >
+                      {t.senderName}
+                    </span>
+                    <span className="font-mono text-[8px] text-white/15">{t.timestamp}</span>
+                  </div>
+                )}
+
+                {/* Message bubble */}
+                <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className={`max-w-[82%] px-3 py-2 font-mono text-[12px] leading-relaxed ${
+                      isUser
+                        ? "text-white/75 bg-white/5 border-r-2"
+                        : "text-white/65 bg-[#111] border-l-2"
+                    }`}
+                    style={{
+                      borderColor: isUser ? "#27ae60" : "#c8893e",
+                    }}
+                  >
+                    {t.text}
+                  </div>
+                </div>
+
+                {/* Timestamp for non-speaker-change messages */}
+                {!speakerChanged && (
+                  <div className={`flex mt-0.5 ${isUser ? "justify-end" : "justify-start"}`}>
+                    <span className="font-mono text-[8px] text-white/10 px-3">{t.timestamp}</span>
+                  </div>
+                )}
               </div>
-              <p className="text-sm font-serif tracking-normal">{t.text}</p>
-            </div>
-          ))
+            );
+          })
         )}
+        <div ref={bottomRef} />
       </div>
     </div>
   );

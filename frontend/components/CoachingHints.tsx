@@ -4,25 +4,24 @@ import { useDataChannel } from "@livekit/components-react";
 import { memo, useCallback, useState, useEffect, useRef } from "react";
 import type { CoachingHint } from "@/lib/types";
 
-// All colors kept within the established palette
-const CATEGORY_COLORS: Record<CoachingHint["category"], string> = {
-  empathy: "#22c55e",
-  patience: "#d99a4e",
-  technique: "#f4f0e6",
-  warning: "#dc2626",
-  opportunity: "#c084fc",
+const CATEGORY_COLOR: Record<CoachingHint["category"], string> = {
+  empathy:     "#27ae60",
+  patience:    "#c8893e",
+  technique:   "rgba(255,255,255,0.4)",
+  warning:     "#c0392b",
+  opportunity: "#c8893e",
 };
 
-const CATEGORY_LABELS: Record<CoachingHint["category"], string> = {
-  empathy: "EMPATHY",
-  patience: "PATIENCE",
-  technique: "TECHNIQUE",
-  warning: "WARNING",
+const CATEGORY_LABEL: Record<CoachingHint["category"], string> = {
+  empathy:     "EMPATHY",
+  patience:    "PATIENCE",
+  technique:   "TECHNIQUE",
+  warning:     "WARNING",
   opportunity: "OPPTY",
 };
 
 const CoachingHints = memo(function CoachingHints() {
-  const [hints, setHints] = useState<CoachingHint[]>([]);
+  const [hints, setHints]         = useState<CoachingHint[]>([]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -30,73 +29,52 @@ const CoachingHints = memo(function CoachingHints() {
     try {
       const data = JSON.parse(new TextDecoder().decode(msg.payload));
       if (data.type === "coachingHint" && data.text) {
-        setHints((prev) => {
-          const next = [
-            ...prev,
-            {
-              id: data.id || `hint-${Date.now()}`,
-              text: data.text,
-              category: data.category || "technique",
-              timestamp: data.timestamp || Date.now(),
-            },
-          ];
-          return next.slice(-8);
-        });
+        setHints((prev) =>
+          [...prev, {
+            id: data.id || `hint-${Date.now()}`,
+            text: data.text,
+            category: data.category || "technique",
+            timestamp: data.timestamp || Date.now(),
+          }].slice(-8)
+        );
       }
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   }, []);
 
   useDataChannel(handleData);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [hints]);
 
-  const visibleHints = hints.filter((h) => !dismissed.has(h.id));
-
-  if (visibleHints.length === 0) return null;
+  const visible = hints.filter((h) => !dismissed.has(h.id));
+  if (visible.length === 0) return null;
 
   return (
-    <div
-      className="w-full bg-[#1e1e1e] border border-[#d99a4e]/40 p-3 text-left"
-      role="region"
-      aria-label="Coaching hints"
-    >
-      <div className="font-mono text-[10px] font-bold tracking-widest text-[#d99a4e] uppercase mb-2 flex items-center gap-1.5">
-        <span className="w-1.5 h-1.5 rounded-full bg-[#d99a4e] animate-pulse" aria-hidden="true" />
-        TRAINING_MODE // COACHING_HINTS
+    <div className="border-b border-white/8 p-4" role="region" aria-label="Coaching hints">
+      <div className="font-mono text-[9px] tracking-[0.2em] text-white/20 uppercase mb-2">
+        Training Hints
       </div>
-
-      <div ref={scrollRef} className="space-y-2 max-h-32 overflow-y-auto">
-        {visibleHints.map((hint) => (
+      <div ref={scrollRef} className="space-y-1.5 max-h-28 overflow-y-auto thin-scroll">
+        {visible.map((hint) => (
           <div
             key={hint.id}
-            className="flex items-start gap-2 p-2 border-l-2 bg-white/5 animate-in fade-in slide-in-from-left-2 duration-300"
-            style={{ borderColor: CATEGORY_COLORS[hint.category] }}
+            className="flex items-start gap-2 border-l border-white/8 pl-2"
+            style={{ borderColor: `${CATEGORY_COLOR[hint.category]}40` }}
           >
             <span
-              className="font-mono text-[8px] font-bold px-1 py-0.5 shrink-0 mt-0.5 border"
-              style={{
-                color: CATEGORY_COLORS[hint.category],
-                borderColor: `${CATEGORY_COLORS[hint.category]}40`,
-                backgroundColor: `${CATEGORY_COLORS[hint.category]}12`,
-              }}
+              className="font-mono text-[7px] font-bold shrink-0 mt-0.5 tracking-widest uppercase"
+              style={{ color: CATEGORY_COLOR[hint.category], opacity: 0.7 }}
             >
-              {CATEGORY_LABELS[hint.category]}
+              {CATEGORY_LABEL[hint.category]}
             </span>
-            <p className="font-serif text-[11px] text-[#f4f0e6]/80 leading-snug flex-1">
-              {hint.text}
-            </p>
+            <p className="font-mono text-[10px] text-white/35 leading-snug flex-1">{hint.text}</p>
             <button
-              onClick={() => setDismissed((prev) => new Set([...prev, hint.id]))}
-              className="text-[#f4f0e6]/30 hover:text-[#f4f0e6]/60 text-xs shrink-0 transition-colors"
-              aria-label="Dismiss hint"
+              onClick={() => setDismissed((p) => new Set([...p, hint.id]))}
+              className="font-mono text-[10px] text-white/15 hover:text-white/40 transition-colors shrink-0"
+              aria-label="Dismiss"
             >
-              &times;
+              ×
             </button>
           </div>
         ))}
