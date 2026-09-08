@@ -56,11 +56,8 @@ function HomeContent() {
   useEffect(() => {
     let active = true;
     setIsGeneratingIntel(true);
+    setScenarioData(null as unknown as ScenarioData);
     const generate = async () => {
-      const defaultData = DEFAULT_SCENARIOS[persona];
-      if (defaultData && active) {
-        setScenarioData(defaultData);
-      }
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
