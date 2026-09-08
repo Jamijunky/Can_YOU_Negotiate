@@ -71,7 +71,7 @@ function HomeContent() {
         });
         clearTimeout(timeoutId);
         const scenarioJson = await scenarioRes.json();
-        if (active && scenarioRes.ok) {
+        if (active && scenarioRes.ok && scenarioJson.intel) {
           setScenarioData(scenarioJson);
         } else if (active) {
           setScenarioData(DEFAULT_SCENARIOS[persona] || DEFAULT_SCENARIOS.robber);

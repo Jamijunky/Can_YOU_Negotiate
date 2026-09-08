@@ -249,6 +249,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Ensure intel field always exists
+    if (!result.intel) {
+      result.intel = result.briefing || result.description || `${result.name || 'The subject'} is in a crisis situation. Approach with caution.`;
+    }
+
     return NextResponse.json(result);
   } catch (error: unknown) {
     console.error("Error in scenario route:", error);
