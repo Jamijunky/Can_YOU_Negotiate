@@ -672,6 +672,7 @@ class NegotiatorAgent(Agent):
             transcript = (ev.transcript or "").strip()
             if not transcript:
                 return
+            logger.info(f"STT raw: final={ev.is_final} text='{transcript}'")
             if ev.is_final:
                 # Deduplicate: skip if same, subset, or high word overlap
                 if hasattr(self, '_last_published_user_text') and self._last_published_user_text:
@@ -1026,9 +1027,11 @@ async def entrypoint(ctx: JobContext) -> None:
         tts_text_transforms=["filter_markdown", "filter_emoji", filter_inner_thoughts],
         stt=_deepgram_module.STT(
             model="nova-3",
-            language="en-US",
+            language="en",
             smart_format=True,
             punctuate=True,
+            interim_results=True,
+            filler_words=True,
         ),
         llm=_openai_module.LLM(
             base_url="https://api.groq.com/openai/v1",
