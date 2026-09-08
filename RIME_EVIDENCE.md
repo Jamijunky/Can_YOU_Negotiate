@@ -1,5 +1,11 @@
 # RIME_EVIDENCE.md
 
+## Demo Video
+
+**YouTube (Unlisted)**: https://youtu.be/VxV1gFdveb8
+
+---
+
 ## Hard Voice Claim
 
 **Removing speech from this product destroys it.** Crisis negotiation is fundamentally a voice-first, full-duplex interaction. The entire simulation depends on:
@@ -37,7 +43,7 @@ This is a realistic, high-stakes voice interaction — not a chatbot with a micr
 - **Transport**: WebSocket (`use_websocket=True`)
 - **Latency Mode**: `reduce_latency=True`
 - **STT**: Deepgram Nova-3 (streaming, with Smart Format + punctuation)
-- **LLM**: Qwen 3.8-27B on Groq (temperature 0.82, max 400 tokens)
+- **LLM**: Qwen 3.8-27B on Groq (temperature 0.82, max 600 tokens)
 - **VAD**: Silero (0.3s speech threshold)
 - **Transport**: LiveKit Cloud WebRTC
 
@@ -111,7 +117,7 @@ Rime `mistv3` voices are mapped to character archetypes based on vocal character
 | **LLM Provider** | Groq |
 | **LLM Model** | `qwen/qwen3.8-27b` |
 | **LLM Temperature** | `0.82` |
-| **LLM Max Tokens** | `400` |
+| **LLM Max Tokens** | `600` |
 | **VAD** | Silero (0.3s threshold) |
 | **Transport** | LiveKit Cloud WebRTC |
 | **TTS Text Transforms** | `filter_markdown`, `filter_emoji`, `filter_inner_thoughts` |

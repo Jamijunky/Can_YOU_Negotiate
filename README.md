@@ -6,6 +6,8 @@ Pick up a live line with a cornered, panicked subject. De-escalate them using on
 
 **Live Demo**: [can-you-negotiate.vercel.app](https://can-you-negotiate.vercel.app)
 
+**Demo Video**: [YouTube (4-5 min)](https://youtu.be/VxV1gFdveb8)
+
 ---
 
 ## Why Voice
@@ -31,7 +33,7 @@ LiveKit Cloud
 Python Agent (LiveKit Agents 1.7.1)
    ├─ VAD: Silero (barge-in detection ~300ms)
    ├─ STT: Deepgram Nova-3 (streaming, Smart Format)
-   ├─ LLM: Qwen 3.8-27B on Groq (temp 0.82, 400 tokens)
+   ├─ LLM: Qwen 3.8-27B on Groq (temp 0.82, 600 tokens)
    ├─ TTS: Rime Mist v3 (WebSocket, reduce_latency=True)
    └─ State: Stress meter (1-100), relationship tracking, escalation chain
 ```
