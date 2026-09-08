@@ -1032,6 +1032,7 @@ async def entrypoint(ctx: JobContext) -> None:
             punctuate=True,
             interim_results=True,
             filler_words=True,
+            keyterm=["surrender", "negotiate", "hostage", "weapon", "police", "FBI", "trust", "calm down", "listen to me"],
         ),
         llm=_openai_module.LLM(
             base_url="https://api.groq.com/openai/v1",
