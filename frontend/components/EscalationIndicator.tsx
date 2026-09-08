@@ -29,35 +29,38 @@ const EscalationIndicator = memo(function EscalationIndicator() {
   const info = ESCALATION_STAGE_LABELS[esc.stage];
 
   return (
-    <div className="border-b border-white/8 p-4" role="region" aria-label="Escalation stage">
-      <div className="flex items-center justify-between mb-3">
-        <div className="font-mono text-[9px] tracking-[0.2em] text-white/20 uppercase">Escalation</div>
-        <div className="font-mono text-[9px] text-white/15 tabular-nums">T{esc.totalTurns}</div>
+    <div className="p-3 border-b border-[#f4f0e6]/8" role="region" aria-label="Escalation stage">
+      <div className="font-mono text-[9px] font-bold tracking-[0.18em] text-[#d99a4e] uppercase mb-2 flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full bg-[#d99a4e] animate-pulse" aria-hidden="true" />
+        ESCALATION_CHAIN
       </div>
 
-      {/* Pip track */}
-      <div className="flex gap-1 mb-2" aria-hidden="true">
+      {/* Stage pip track */}
+      <div className="flex items-center gap-1 mb-2" aria-hidden="true">
         {STAGES.map((s) => {
           const active = s <= esc.stage;
           const current = s === esc.stage;
           return (
             <div
               key={s}
-              className="flex-1 h-1 transition-all duration-500"
+              className="flex-1 h-1.5 transition-all duration-500"
               style={{
-                backgroundColor: active ? info.color : "rgba(255,255,255,0.06)",
-                boxShadow: current ? `0 0 4px ${info.color}` : "none",
+                backgroundColor: active ? info.color : "rgba(244,240,230,0.08)",
+                boxShadow: current ? `0 0 6px ${info.color}` : "none",
+                opacity: active ? 1 : 0.3,
               }}
             />
           );
         })}
       </div>
 
-      {/* Label + description */}
-      <div className="font-mono text-[10px] font-bold uppercase tracking-wider" style={{ color: info.color }}>
-        {info.label}
+      <div className="flex items-baseline justify-between">
+        <span className="font-mono text-[10px] font-black tracking-wider uppercase" style={{ color: info.color }}>
+          STAGE {esc.stage}: {info.label}
+        </span>
+        <span className="font-mono text-[9px] text-[#f4f0e6]/30 tabular-nums">TURN {esc.totalTurns}</span>
       </div>
-      <p className="font-mono text-[9px] text-white/25 mt-0.5 leading-snug">{info.description}</p>
+      <p className="font-serif text-[11px] text-[#f4f0e6]/40 mt-0.5 leading-snug">{info.description}</p>
     </div>
   );
 });

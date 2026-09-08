@@ -21,156 +21,9 @@ import ObjectiveDisplay from "@/components/ObjectiveDisplay";
 import { LiveKitErrorBoundary } from "@/components/LiveKitErrorBoundary";
 import { ToastProvider, useToast } from "@/components/Toast";
 import { DEFAULT_SCENARIOS, PERSONA_LABELS, getDefaultName } from "@/lib/scenarios";
-import type { PersonaKey, Difficulty, ScenarioData, Scenario } from "@/lib/types";
+import type { PersonaKey, Difficulty, ScenarioData } from "@/lib/types";
 import { BACKEND_URL, CUSTOM_PERSONA_DEBOUNCE_MS } from "@/lib/constants";
 
-// ── Personality bar component (used in dossier preview) ─────────────
-function PersonalityBar({ label, value, color = "#c8893e" }: { label: string; value: number; color?: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="font-mono text-[9px] tracking-widest opacity-40 uppercase w-20 shrink-0">{label}</span>
-      <div className="flex-1 h-px bg-white/10 relative">
-        <div
-          className="absolute inset-y-0 left-0 h-full"
-          style={{ width: `${Math.round(value * 100)}%`, backgroundColor: color, opacity: 0.8 }}
-        />
-      </div>
-      <span className="font-mono text-[9px] opacity-30 w-6 text-right">{Math.round(value * 10)}</span>
-    </div>
-  );
-}
-
-// ── Dossier panel for the selected scenario ──────────────────────────
-function DossierPanel({
-  scenario,
-  isGenerating,
-  intel,
-}: {
-  scenario: Scenario | null;
-  isGenerating: boolean;
-  intel: string;
-}) {
-  if (!scenario) return (
-    <div className="flex-1 border border-white/8 bg-[#0f0f0f] p-6 flex items-center justify-center">
-      <span className="font-mono text-[11px] text-white/20 tracking-widest animate-pulse">LOADING DOSSIER...</span>
-    </div>
-  );
-
-  const p = scenario.personality;
-  const neuroticism = p?.neuroticism ?? 0.5;
-  const agreeableness = p?.agreeableness ?? 0.5;
-
-  return (
-    <div className="flex-1 border border-white/8 bg-[#0f0f0f] flex flex-col overflow-hidden">
-      {/* Dossier header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-white/8 bg-[#0a0a0a]">
-        <span className="font-mono text-[9px] tracking-[0.2em] opacity-30 uppercase">INCIDENT FILE</span>
-        <span
-          className="font-mono text-[9px] tracking-[0.2em] uppercase"
-          style={{
-            color: neuroticism > 0.7 ? "#c0392b" : neuroticism > 0.4 ? "#c8893e" : "#27ae60",
-          }}
-        >
-          THREAT LEVEL: {neuroticism > 0.7 ? "HIGH" : neuroticism > 0.4 ? "MODERATE" : "LOW"}
-        </span>
-      </div>
-
-      <div className="flex-1 overflow-y-auto thin-scroll p-4 space-y-4">
-        {/* Subject ID */}
-        <div>
-          <div className="font-mono text-[9px] tracking-[0.15em] opacity-30 uppercase mb-1">Subject</div>
-          <div className="font-mono text-lg font-bold text-white/90 tracking-wide uppercase">
-            {scenario.name}
-            <span className="ml-2 font-mono text-[10px] text-white/20 normal-case tracking-wider">
-              · {scenario.gender}
-            </span>
-          </div>
-        </div>
-
-        {/* Intel */}
-        <div>
-          <div className="font-mono text-[9px] tracking-[0.15em] opacity-30 uppercase mb-1.5">Situation Report</div>
-          <p
-            className={`font-mono text-[11px] text-white/60 leading-relaxed transition-opacity duration-300 ${
-              isGenerating ? "opacity-30 animate-pulse" : ""
-            }`}
-          >
-            {intel}
-          </p>
-        </div>
-
-        {/* Opening line */}
-        {scenario.openingLine && (
-          <div className="border-l-2 border-[#c0392b]/50 pl-3">
-            <div className="font-mono text-[9px] tracking-[0.15em] text-[#c0392b]/50 uppercase mb-1">First words</div>
-            <p className="font-mono text-[11px] text-white/50 italic leading-relaxed">
-              &ldquo;{scenario.openingLine}&rdquo;
-            </p>
-          </div>
-        )}
-
-        {/* Personality breakdown */}
-        {p && (
-          <div>
-            <div className="font-mono text-[9px] tracking-[0.15em] opacity-30 uppercase mb-2">Psychological Profile</div>
-            <div className="space-y-1.5">
-              <PersonalityBar label="Volatility" value={p.neuroticism} color="#c0392b" />
-              <PersonalityBar label="Hostility" value={1 - p.agreeableness} color="#c8893e" />
-              <PersonalityBar label="Openness" value={p.openness} color="#27ae60" />
-              <PersonalityBar label="Impulsive" value={1 - p.conscientiousness} color="#c8893e" />
-            </div>
-          </div>
-        )}
-
-        {/* Primary goal */}
-        {scenario.primary_goal && (
-          <div>
-            <div className="font-mono text-[9px] tracking-[0.15em] opacity-30 uppercase mb-1">What they want</div>
-            <p className="font-mono text-[11px] text-white/50 leading-relaxed">{scenario.primary_goal}</p>
-          </div>
-        )}
-
-        {/* Non-negotiables */}
-        {scenario.non_negotiables && scenario.non_negotiables.length > 0 && (
-          <div>
-            <div className="font-mono text-[9px] tracking-[0.15em] text-[#c0392b]/60 uppercase mb-1.5">Will not compromise on</div>
-            <ul className="space-y-1">
-              {scenario.non_negotiables.map((item, i) => (
-                <li key={i} className="font-mono text-[10px] text-[#c0392b]/50 flex gap-2">
-                  <span className="opacity-40 shrink-0">×</span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Fears — partially redacted */}
-        {scenario.fears && scenario.fears.length > 0 && (
-          <div>
-            <div className="font-mono text-[9px] tracking-[0.15em] opacity-30 uppercase mb-1.5">Known fears</div>
-            <ul className="space-y-1">
-              {scenario.fears.slice(0, 2).map((fear, i) => (
-                <li key={i} className="font-mono text-[10px] text-white/30 flex gap-2">
-                  <span className="opacity-40 shrink-0">—</span>
-                  <span>{fear}</span>
-                </li>
-              ))}
-              {scenario.fears.length > 2 && (
-                <li className="font-mono text-[10px] text-white/15 flex gap-2">
-                  <span className="opacity-40 shrink-0">—</span>
-                  <span className="bg-white/10 text-transparent select-none px-8">REDACTED</span>
-                </li>
-              )}
-            </ul>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Main page ────────────────────────────────────────────────────────
 function HomeContent() {
   const [token, setToken] = useState<string | null>(null);
   const [persona, setPersona] = useState<PersonaKey>("robber");
@@ -216,7 +69,8 @@ function HomeContent() {
         } else if (active) {
           setScenarioData(DEFAULT_SCENARIOS[persona] || DEFAULT_SCENARIOS.robber);
         }
-      } catch {
+      } catch (e) {
+        console.error("Failed to generate intel preview, using local fallback", e);
         if (active) setScenarioData(DEFAULT_SCENARIOS[persona] || DEFAULT_SCENARIOS.robber);
       } finally {
         if (active) setIsGeneratingIntel(false);
@@ -238,7 +92,12 @@ function HomeContent() {
       setIsConnecting(true);
       const finalScenarioData = scenarioData || DEFAULT_SCENARIOS[persona] || DEFAULT_SCENARIOS.robber;
       const roomName = `english-${persona}-${Math.floor(Math.random() * 10000)}`;
-      const metaObj: Record<string, unknown> = { difficulty, dynamicScenario: true, trainingMode, ...finalScenarioData };
+      const metaObj: Record<string, unknown> = {
+        difficulty,
+        dynamicScenario: true,
+        trainingMode,
+        ...finalScenarioData,
+      };
       if (persona === "custom") {
         metaObj.age = customAge;
         metaObj.profession = customProfession;
@@ -269,373 +128,305 @@ function HomeContent() {
   }, [isGeneratingIntel, scenarioData, persona]);
 
   const currentIntel = isGeneratingIntel
-    ? "Retrieving situation report..."
+    ? "REFRESHING INTEL..."
     : scenarioData?.intel || "No intel available.";
 
-  const selectedScenario: Scenario | null = scenarioData || DEFAULT_SCENARIOS[persona] || null;
+  return (
+    <main
+      className={`min-h-screen flex flex-col items-center justify-start overflow-x-hidden relative py-12 px-4 transition-colors duration-700 ${
+        token ? "bg-[#0f0f0f]" : "bg-[#f4f0e6]"
+      }`}
+    >
+      {/* Background EKG line */}
+      <div
+        className={`fixed top-0 left-0 bottom-0 w-48 md:w-64 pointer-events-none transition-opacity duration-700 ${
+          token ? "opacity-[0.02]" : "opacity-[0.04]"
+        }`}
+        aria-hidden="true"
+      >
+        <svg
+          viewBox="0 0 300 1200"
+          className={`w-full h-full fill-none ${token ? "stroke-[#f4f0e6]" : "stroke-black"}`}
+          strokeWidth="8"
+          preserveAspectRatio="none"
+        >
+          <path
+            d="M150,0 L150,300 L50,350 L250,400 L150,450 L150,700 L20,750 L280,800 L150,850 L150,1200"
+            strokeLinejoin="miter"
+            strokeLinecap="square"
+          />
+        </svg>
+      </div>
 
-  // ── DEBRIEF VIEW ──────────────────────────────────────────────────
-  if (report) {
-    return (
-      <main className="min-h-screen bg-[#0d0d0d] flex flex-col items-center justify-start py-12 px-4 overflow-x-hidden">
-        <div className="w-full max-w-2xl">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="font-mono text-[9px] tracking-[0.2em] text-white/25 uppercase">
-              POST-ACTION DEBRIEF // CLASSIFIED
+      {/* ── LOBBY ─────────────────────────────────────────────────── */}
+      {!token && (
+        <div className="max-w-4xl w-full flex flex-col items-center text-center z-10 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Title */}
+          <div className="relative mt-12">
+            <div className="absolute -inset-2 bg-[#d99a4e] translate-x-2 translate-y-3 -z-10 mix-blend-multiply opacity-80" />
+            <div className="absolute -left-8 -top-6 bg-[#1e1e1e] text-[#f4f0e6] font-mono text-xl px-4 py-1 rotate-[-5deg] z-10">
+              Can you
             </div>
-            <div className="font-mono text-[9px] tracking-[0.2em] text-[#c8893e]/60 uppercase">
-              {new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "2-digit" }).toUpperCase()}
+            <h1 className="text-7xl md:text-9xl font-serif font-black tracking-tighter text-[#1e1e1e] uppercase border-4 border-[#1e1e1e] px-6 py-2 bg-[#f4f0e6]">
+              Negotiate
+            </h1>
+            <div className="absolute -right-8 -bottom-4 text-[#dc2626] font-serif font-black text-6xl md:text-8xl rotate-[15deg] z-10 drop-shadow-md">
+              ?
             </div>
           </div>
 
-          <ParsedReport text={report} />
+          <p className="text-xl md:text-2xl font-serif text-[#1e1e1e]/80 italic mt-8 max-w-lg bg-[#f4f0e6]/80 p-2 whitespace-pre-line text-center">
+            {"De-escalation via verbal interrupt.\nCalm the subject."}
+          </p>
 
-          <div className="mt-8 flex flex-wrap gap-3 border-t border-white/8 pt-6">
-            <button
-              onClick={() => { setReport(null); setRefreshTrigger((r) => r + 1); }}
-              className="font-mono text-xs font-bold tracking-widest uppercase px-6 py-3 bg-white/5 border border-white/15 text-white/60 hover:bg-white/10 hover:text-white/90 transition-colors"
-            >
-              New Subject
-            </button>
-            <button
-              onClick={() => setReport(null)}
-              className="font-mono text-xs font-bold tracking-widest uppercase px-6 py-3 bg-white/5 border border-white/15 text-white/60 hover:bg-white/10 hover:text-white/90 transition-colors"
-            >
-              Same Subject
-            </button>
-            <button
-              onClick={() => { setReport(null); setPersona("robber"); setDifficulty("medium"); setRefreshTrigger((r) => r + 1); }}
-              className="font-mono text-xs font-bold tracking-widest uppercase px-6 py-3 bg-white/5 border border-white/15 text-white/60 hover:bg-white/10 hover:text-white/90 transition-colors"
-            >
-              Home
-            </button>
+          {/* Mission brief */}
+          <div className="w-full max-w-2xl bg-[#f4f0e6] border-4 border-[#1e1e1e] p-8 text-left relative mt-8 shadow-[8px_8px_0_0_#d99a4e]">
+            <div className="absolute -top-3 left-4 bg-[#f4f0e6] px-2 text-sm font-bold uppercase tracking-widest text-[#d99a4e]">
+              MISSION_BRIEF
+            </div>
+            <ol className="text-left font-serif text-lg space-y-4 text-[#1e1e1e]/90 leading-relaxed">
+              <li className="flex gap-4">
+                <span className="font-mono text-[#d99a4e] font-bold">/01</span>
+                <span>The subject is highly panicked and will immediately begin a hostile rant.</span>
+              </li>
+              <li className="flex gap-4">
+                <span className="font-mono text-[#d99a4e] font-bold">/02</span>
+                <span>Listen closely for clues and pull the right threads to uncover their <strong className="font-black">hidden backstory</strong>.</span>
+              </li>
+              <li className="flex gap-4">
+                <span className="font-mono text-[#d99a4e] font-bold">/03</span>
+                <span>Use empathy to lower their <strong className="font-black">Stress Level</strong> and force a peaceful surrender.</span>
+              </li>
+            </ol>
           </div>
         </div>
-      </main>
-    );
-  }
+      )}
 
-  // ── ACTIVE SESSION VIEW ───────────────────────────────────────────
-  if (token) {
-    return (
-      <main className="min-h-screen bg-[#0d0d0d] flex flex-col overflow-hidden">
-        {/* Top status bar */}
-        <div className="shrink-0 flex items-center justify-between px-4 py-1.5 border-b border-white/8 bg-[#0a0a0a]">
-          <div className="flex items-center gap-3">
-            <span
-              className="w-2 h-2 rounded-full bg-[#c0392b] shrink-0"
-              style={{ animation: "pulse-red 1.4s ease-in-out infinite" }}
-              aria-hidden="true"
-            />
-            <span className="font-mono text-[9px] tracking-[0.2em] text-white/30 uppercase">Live Negotiation</span>
+      <div className="z-10 mt-12 w-full max-w-4xl flex justify-center">
+
+        {/* ── DEBRIEF ─────────────────────────────────────────────── */}
+        {report ? (
+          <div className="flex flex-col items-center bg-[#f4f0e6] border-4 border-[#1e1e1e] p-8 shadow-[12px_12px_0_0_#d99a4e] w-full max-w-2xl relative">
+            <div className="absolute -top-4 bg-[#d99a4e] text-[#1e1e1e] font-mono font-black text-xl px-4 border-2 border-[#1e1e1e]">
+              POST-ACTION DEBRIEF
+            </div>
+            <div className="w-full mt-4">
+              <ParsedReport text={report} />
+            </div>
+            <div className="mt-8 flex flex-wrap justify-center gap-6 w-full">
+              <button
+                onClick={() => { setReport(null); setRefreshTrigger((r) => r + 1); }}
+                className="bg-[#1e1e1e] text-[#f4f0e6] font-mono font-bold text-xl px-8 py-4 border-2 border-[#1e1e1e] shadow-[4px_4px_0_0_#d99a4e] hover:translate-y-1 hover:shadow-[2px_2px_0_0_#d99a4e] transition-all"
+              >
+                RETRY WITH NEW SUBJECT
+              </button>
+              <button
+                onClick={() => setReport(null)}
+                className="bg-white/80 text-[#1e1e1e] font-mono font-bold text-xl px-8 py-4 border-2 border-[#1e1e1e] shadow-[4px_4px_0_0_#1e1e1e] hover:translate-y-1 hover:shadow-[2px_2px_0_0_#1e1e1e] transition-all"
+              >
+                BACK TO PROFILE
+              </button>
+              <button
+                onClick={() => { setReport(null); setPersona("robber"); setDifficulty("medium"); setRefreshTrigger((r) => r + 1); }}
+                className="bg-white/40 text-[#1e1e1e] font-mono font-bold text-xl px-8 py-4 border-2 border-[#1e1e1e] shadow-[4px_4px_0_0_#1e1e1e] hover:translate-y-1 hover:shadow-[2px_2px_0_0_#1e1e1e] transition-all"
+              >
+                HOME
+              </button>
+            </div>
           </div>
-          <div className="font-mono text-[9px] tracking-[0.2em] text-[#c8893e] uppercase">
-            Subject: {currentName}
-          </div>
-          <div className="font-mono text-[9px] tracking-[0.2em] text-white/20 uppercase">
-            {new Date().toLocaleTimeString([], { hour12: false, hour: "2-digit", minute: "2-digit" })}
-          </div>
-        </div>
 
-        {/* Session body */}
-        <div className="flex-1 flex overflow-hidden">
-          <LiveKitRoom
-            serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
-            token={token}
-            connect={!!token}
-            onDisconnected={disconnect}
-            audio={true}
-            video={false}
-            className="flex-1 flex overflow-hidden"
-          >
-            {/* ── LEFT COLUMN: intel + gauges ── */}
-            <div className="w-72 shrink-0 flex flex-col border-r border-white/8 overflow-y-auto thin-scroll">
-              {/* Stress gauge row */}
-              <div className="shrink-0 border-b border-white/8 bg-[#0a0a0a]">
-                <MissionStatus onReport={setReport} />
+        ) : !token ? (
+          /* ── PERSONA / CONNECT ──────────────────────────────────── */
+          <div className="flex flex-col items-center gap-8 w-full">
+            <div className="flex gap-4 w-full max-w-lg">
+              <div className="flex flex-col gap-2 flex-1">
+                <label htmlFor="persona-select" className="font-mono text-sm font-bold tracking-widest text-[#1e1e1e] opacity-70">
+                  SUBJECT_PROFILE
+                </label>
+                <select
+                  id="persona-select"
+                  value={persona}
+                  onChange={(e) => setPersona(e.target.value as PersonaKey)}
+                  className="w-full bg-[#f4f0e6] text-[#1e1e1e] border-4 border-[#1e1e1e] font-serif font-bold text-xl p-3 shadow-[6px_6px_0_0_#d99a4e] focus:outline-none focus:ring-0 appearance-none rounded-none cursor-pointer"
+                >
+                  {(Object.keys(PERSONA_LABELS) as PersonaKey[]).map((key) => (
+                    <option key={key} value={key}>{PERSONA_LABELS[key]}</option>
+                  ))}
+                </select>
               </div>
-
-              {/* Intel */}
-              <div className="shrink-0">
-                <LiveKitErrorBoundary>
-                  <IntelDisplay intel={currentIntel} />
-                </LiveKitErrorBoundary>
+              <div className="flex flex-col gap-2 w-48">
+                <label htmlFor="difficulty-select" className="font-mono text-sm font-bold tracking-widest text-[#1e1e1e] opacity-70">
+                  DIFFICULTY
+                </label>
+                <select
+                  id="difficulty-select"
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value as Difficulty)}
+                  className="w-full bg-[#f4f0e6] text-[#1e1e1e] border-4 border-[#1e1e1e] font-serif font-bold text-xl p-3 shadow-[6px_6px_0_0_#d99a4e] focus:outline-none focus:ring-0 appearance-none rounded-none cursor-pointer"
+                >
+                  <option value="low">LOW</option>
+                  <option value="medium">MEDIUM</option>
+                  <option value="high">HIGH</option>
+                </select>
               </div>
+            </div>
 
-              {/* Relationship bars */}
-              <div className="shrink-0">
-                <LiveKitErrorBoundary>
-                  <RelationshipDisplay />
-                </LiveKitErrorBoundary>
-              </div>
+            <div className="flex items-center gap-3 mt-2">
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={trainingMode}
+                  onChange={(e) => setTrainingMode(e.target.checked)}
+                  className="w-4 h-4 accent-[#d99a4e]"
+                />
+                <span className="font-mono text-xs font-bold tracking-widest text-[#1e1e1e]/70 uppercase group-hover:text-[#1e1e1e] transition-colors">
+                  Training Mode
+                </span>
+              </label>
+              <span className="font-serif text-xs text-[#1e1e1e]/40 italic">
+                real-time coaching hints
+              </span>
+            </div>
 
-              {/* Escalation */}
-              <div className="shrink-0">
-                <LiveKitErrorBoundary>
-                  <EscalationIndicator />
-                </LiveKitErrorBoundary>
-              </div>
-
-              {/* Emotional arc */}
-              <div className="shrink-0">
-                <LiveKitErrorBoundary>
-                  <EmotionalArc />
-                </LiveKitErrorBoundary>
-              </div>
-
-              {/* Subject mind */}
-              <div className="shrink-0">
-                <LiveKitErrorBoundary>
-                  <ObjectiveDisplay />
-                </LiveKitErrorBoundary>
-              </div>
-
-              {trainingMode && (
-                <div className="shrink-0">
-                  <LiveKitErrorBoundary>
-                    <CoachingHints />
-                  </LiveKitErrorBoundary>
+            {persona === "custom" && (
+              <div className="w-full max-w-xl bg-[#1e1e1e] text-[#f4f0e6] p-6 border-4 border-[#d99a4e] shadow-[8px_8px_0_0_#d99a4e] flex flex-col gap-4 mt-2">
+                <h3 className="font-mono text-sm font-bold tracking-widest text-[#d99a4e]">CUSTOM_GENERATOR</h3>
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <label htmlFor="custom-name" className="text-xs font-bold font-mono opacity-80 mb-1 block">NAME</label>
+                    <input id="custom-name" type="text" value={customName} onChange={(e) => setCustomName(e.target.value)}
+                      className="w-full bg-transparent border-b-2 border-[#f4f0e6] p-2 font-serif text-lg focus:outline-none" />
+                  </div>
+                  <div className="w-24">
+                    <label htmlFor="custom-age" className="text-xs font-bold font-mono opacity-80 mb-1 block">AGE</label>
+                    <input id="custom-age" type="number" min="1" max="120" value={customAge} onChange={(e) => setCustomAge(e.target.value)}
+                      className="w-full bg-transparent border-b-2 border-[#f4f0e6] p-2 font-serif text-lg focus:outline-none" />
+                  </div>
+                  <div className="flex-1">
+                    <label htmlFor="custom-profession" className="text-xs font-bold font-mono opacity-80 mb-1 block">PROFESSION</label>
+                    <input id="custom-profession" type="text" value={customProfession} onChange={(e) => setCustomProfession(e.target.value)}
+                      className="w-full bg-transparent border-b-2 border-[#f4f0e6] p-2 font-serif text-lg focus:outline-none" />
+                  </div>
                 </div>
+                <div>
+                  <label htmlFor="custom-motive" className="text-xs font-bold font-mono opacity-80 mb-1 block">SITUATION / MOTIVE</label>
+                  <textarea id="custom-motive" value={customMotive} onChange={(e) => setCustomMotive(e.target.value)}
+                    maxLength={2000}
+                    className="w-full bg-transparent border-2 border-[#f4f0e6] p-2 font-serif text-lg h-24 focus:outline-none resize-none" />
+                </div>
+              </div>
+            )}
+
+            {/* Intel preview */}
+            <div className="w-full max-w-lg mt-4 bg-[#1e1e1e]/5 border border-[#1e1e1e]/15 border-l-4 border-l-[#d99a4e] p-4 relative">
+              <div className="font-mono text-[10px] font-bold tracking-widest text-[#d99a4e] uppercase mb-2 flex items-center gap-1.5">
+                <span className={`w-1.5 h-1.5 rounded-full ${isGeneratingIntel ? "bg-[#d99a4e] animate-pulse" : "bg-[#22c55e]"}`} aria-hidden="true" />
+                INTEL_PREVIEW
+              </div>
+              <p className={`font-serif text-sm text-[#1e1e1e]/80 leading-relaxed transition-opacity duration-300 ${isGeneratingIntel ? "opacity-50 italic" : "opacity-100"}`}>
+                {currentIntel}
+              </p>
+            </div>
+
+            <div className="flex flex-col items-center gap-3 mt-2">
+              <button
+                onClick={connect}
+                disabled={isConnecting}
+                aria-label={isConnecting ? "Connecting to negotiation room" : "Connect to negotiation"}
+                className={`px-10 py-4 font-mono font-bold text-lg uppercase tracking-widest text-[#f4f0e6] transition-all ${
+                  isConnecting
+                    ? "bg-[#1e1e1e]/40 cursor-not-allowed opacity-60"
+                    : "bg-[#1e1e1e] hover:bg-[#dc2626] shadow-[5px_5px_0_0_#d99a4e] hover:shadow-[2px_2px_0_0_#d99a4e] hover:translate-y-[3px] hover:translate-x-[3px]"
+                }`}
+              >
+                {isConnecting ? "CONNECTING..." : "CONNECT TO NEGOTIATION"}
+              </button>
+              {!isConnecting && (
+                <p className="font-mono text-[10px] text-[#1e1e1e]/35 tracking-widest uppercase">
+                  Microphone required
+                </p>
               )}
             </div>
-
-            {/* ── RIGHT COLUMN: transcript + controls (dominant) ── */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Transcript — takes most of the space */}
-              <div className="flex-1 overflow-hidden">
-                <LiveKitErrorBoundary>
-                  <LiveTranscriptFeed subjectName={currentName} />
-                </LiveKitErrorBoundary>
-              </div>
-
-              {/* Controls pinned to bottom */}
-              <div className="shrink-0 border-t border-white/8">
-                <LiveKitErrorBoundary>
-                  <SimulationUI
-                    subjectName={currentName}
-                    tacticalHold={tacticalHold}
-                    setTacticalHold={setTacticalHold}
-                    onDisconnect={disconnect}
-                  />
-                </LiveKitErrorBoundary>
-              </div>
-            </div>
-
-            <LiveKitErrorBoundary>
-              <Watchdog onDisconnect={disconnect} isHolding={tacticalHold} />
-            </LiveKitErrorBoundary>
-            <LiveKitErrorBoundary>
-              <RoomAudioRenderer />
-            </LiveKitErrorBoundary>
-          </LiveKitRoom>
-        </div>
-      </main>
-    );
-  }
-
-  // ── LOBBY VIEW ────────────────────────────────────────────────────
-  return (
-    <main className="min-h-screen bg-[#0d0d0d] flex flex-col overflow-x-hidden">
-
-      {/* ── Top navigation bar ── */}
-      <div className="shrink-0 flex items-center justify-between px-6 py-3 border-b border-white/8">
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-[9px] tracking-[0.25em] text-white/20 uppercase">Crisis Negotiation Simulator</span>
-          <span className="font-mono text-[9px] text-white/10">·</span>
-          <span className="font-mono text-[9px] tracking-[0.15em] text-white/10 uppercase">v2.1</span>
-        </div>
-        <div className="font-mono text-[9px] tracking-[0.2em] text-white/15 uppercase">
-          {new Date().toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric" }).toUpperCase()}
-        </div>
-      </div>
-
-      {/* ── Hero ── */}
-      <div className="shrink-0 px-6 pt-10 pb-6 border-b border-white/8">
-        <div className="max-w-4xl mx-auto flex items-end justify-between gap-8">
-          <div>
-            {/* Overline */}
-            <div className="font-mono text-[9px] tracking-[0.3em] text-[#c8893e]/60 uppercase mb-3">
-              Field Training Exercise
-            </div>
-            {/* Title — the ONE place Playfair is used */}
-            <h1 className="font-serif text-5xl md:text-7xl font-black text-white/90 tracking-tight leading-none uppercase">
-              Can You<br />Negotiate?
-            </h1>
-            <p className="font-mono text-[11px] text-white/30 leading-relaxed mt-4 max-w-md">
-              You are the negotiator. The subject has goals, fears, and lines they{" "}
-              <span className="text-white/50">will not cross</span>. Listen carefully.
-              Every word counts.
-            </p>
           </div>
 
-          {/* Difficulty + training mode controls */}
-          <div className="shrink-0 flex flex-col gap-3 items-end">
-            <div>
-              <div className="font-mono text-[9px] tracking-[0.15em] text-white/25 uppercase mb-1.5">Difficulty</div>
-              <div className="flex gap-1">
-                {(["low", "medium", "high"] as Difficulty[]).map((d) => (
-                  <button
-                    key={d}
-                    onClick={() => setDifficulty(d)}
-                    className={`font-mono text-[10px] tracking-widest uppercase px-3 py-1.5 border transition-all ${
-                      difficulty === d
-                        ? d === "high"
-                          ? "bg-[#c0392b] border-[#c0392b] text-white"
-                          : d === "medium"
-                          ? "bg-[#c8893e] border-[#c8893e] text-[#0d0d0d]"
-                          : "bg-[#27ae60] border-[#27ae60] text-[#0d0d0d]"
-                        : "bg-transparent border-white/10 text-white/25 hover:border-white/25 hover:text-white/40"
-                    }`}
-                  >
-                    {d}
-                  </button>
-                ))}
+        ) : (
+          /* ── ACTIVE SESSION ─────────────────────────────────────── */
+          <div className="w-full max-w-4xl bg-[#0f0f0f] border border-[#f4f0e6]/10 shadow-[0_0_60px_rgba(0,0,0,0.8)] relative mt-8 overflow-hidden">
+
+            {/* Scanline overlay */}
+            <div
+              className="absolute inset-0 pointer-events-none z-[1]"
+              style={{ backgroundImage: "repeating-linear-gradient(to bottom, transparent 0px, transparent 3px, rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px)" }}
+              aria-hidden="true"
+            />
+
+            {/* Top chrome bar */}
+            <div className="relative z-10 flex items-center justify-between px-4 py-2 border-b border-[#f4f0e6]/10 bg-[#1a1a1a]">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#dc2626] glow-red" aria-hidden="true" />
+                <span className="font-mono text-[10px] font-bold tracking-widest text-[#f4f0e6]/50 uppercase">LIVE_FEED</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[10px] text-[#f4f0e6]/30 tracking-widest uppercase">SUBJECT:</span>
+                <span className="font-mono text-xs font-black tracking-widest text-[#d99a4e] uppercase">{currentName}</span>
               </div>
             </div>
 
-            <label className="flex items-center gap-2 cursor-pointer group">
-              <div
-                onClick={() => setTrainingMode((v) => !v)}
-                className={`w-8 h-4 border transition-colors cursor-pointer flex items-center ${
-                  trainingMode ? "bg-[#c8893e]/20 border-[#c8893e]/60" : "bg-white/5 border-white/15"
-                }`}
-                role="checkbox"
-                aria-checked={trainingMode}
-                aria-label="Training mode"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === " " && setTrainingMode((v) => !v)}
+            {/* Two-column body */}
+            <div className="relative z-10 flex min-h-0">
+              <LiveKitRoom
+                serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
+                token={token}
+                connect={!!token}
+                onDisconnected={disconnect}
+                audio={true}
+                video={false}
+                className="flex-1 min-w-0 flex"
               >
-                <div
-                  className={`w-3 h-3 transition-all mx-px ${
-                    trainingMode ? "bg-[#c8893e] translate-x-3" : "bg-white/20 translate-x-0"
-                  }`}
-                />
-              </div>
-              <span className={`font-mono text-[9px] tracking-[0.15em] uppercase transition-colors ${
-                trainingMode ? "text-[#c8893e]/80" : "text-white/20"
-              }`}>
-                Training Mode
-              </span>
-            </label>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Main content: scenario list + dossier ── */}
-      <div className="flex-1 flex max-w-4xl w-full mx-auto overflow-hidden" style={{ minHeight: 0 }}>
-
-        {/* Left: incident file list */}
-        <div className="w-64 shrink-0 border-r border-white/8 flex flex-col overflow-hidden">
-          <div className="px-4 py-2 border-b border-white/8">
-            <span className="font-mono text-[9px] tracking-[0.2em] text-white/20 uppercase">Incident Files ({Object.keys(PERSONA_LABELS).length - 1})</span>
-          </div>
-          <div className="flex-1 overflow-y-auto thin-scroll">
-            {(Object.keys(PERSONA_LABELS) as PersonaKey[]).map((key) => {
-              const scenario = DEFAULT_SCENARIOS[key];
-              const isActive = persona === key;
-              const neuroticism = scenario?.personality?.neuroticism ?? 0.5;
-              const threatColor = neuroticism > 0.7 ? "#c0392b" : neuroticism > 0.4 ? "#c8893e" : "#27ae60";
-              return (
-                <button
-                  key={key}
-                  onClick={() => setPersona(key)}
-                  className={`w-full text-left px-4 py-3 border-b border-white/5 flex items-start gap-3 transition-colors ${
-                    isActive ? "bg-white/6" : "hover:bg-white/3"
-                  }`}
-                >
-                  {/* Threat indicator */}
-                  <div className="mt-1 w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: threatColor, opacity: isActive ? 1 : 0.4 }} />
-                  <div className="min-w-0">
-                    <div className={`font-mono text-[10px] tracking-wide truncate transition-colors ${
-                      isActive ? "text-white/80" : "text-white/30"
-                    }`}>
-                      {scenario?.name || "Custom"}
-                    </div>
-                    <div className={`font-mono text-[9px] truncate transition-colors ${
-                      isActive ? "text-white/35" : "text-white/15"
-                    }`}>
-                      {PERSONA_LABELS[key].replace(/^\d+ - /, "")}
+                {/* ── LEFT: gauges ── */}
+                <div className="w-64 shrink-0 border-r border-[#f4f0e6]/8 flex flex-col bg-[#141414]">
+                  {/* Stress gauge + intel */}
+                  <div className="flex items-stretch border-b border-[#f4f0e6]/8">
+                    <MissionStatus onReport={setReport} />
+                    <div className="flex-1 min-w-0">
+                      <LiveKitErrorBoundary>
+                        <IntelDisplay intel={currentIntel} />
+                      </LiveKitErrorBoundary>
                     </div>
                   </div>
-                  {isActive && (
-                    <div className="ml-auto shrink-0 font-mono text-[8px] text-[#c8893e]/60 self-center">›</div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
-        {/* Right: dossier + connect */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-
-          {/* Dossier preview */}
-          <div className="flex-1 overflow-hidden flex flex-col">
-            <DossierPanel
-              scenario={selectedScenario}
-              isGenerating={isGeneratingIntel}
-              intel={currentIntel}
-            />
-          </div>
-
-          {/* Custom persona fields */}
-          {persona === "custom" && (
-            <div className="shrink-0 border-t border-white/8 bg-[#0a0a0a] p-4 grid grid-cols-3 gap-3">
-              {[
-                { id: "custom-name", label: "Name", value: customName, onChange: setCustomName, type: "text" },
-                { id: "custom-age", label: "Age", value: customAge, onChange: setCustomAge, type: "number" },
-                { id: "custom-profession", label: "Profession", value: customProfession, onChange: setCustomProfession, type: "text" },
-              ].map(({ id, label, value, onChange, type }) => (
-                <div key={id}>
-                  <label htmlFor={id} className="font-mono text-[9px] tracking-[0.15em] text-white/25 uppercase block mb-1">{label}</label>
-                  <input
-                    id={id}
-                    type={type}
-                    value={value}
-                    min={type === "number" ? 1 : undefined}
-                    max={type === "number" ? 120 : undefined}
-                    onChange={(e) => onChange(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 text-white/70 font-mono text-xs p-2 focus:outline-none focus:border-white/25 transition-colors"
-                  />
+                  <LiveKitErrorBoundary><RelationshipDisplay /></LiveKitErrorBoundary>
+                  <LiveKitErrorBoundary><EscalationIndicator /></LiveKitErrorBoundary>
+                  <LiveKitErrorBoundary><EmotionalArc /></LiveKitErrorBoundary>
+                  <LiveKitErrorBoundary><ObjectiveDisplay /></LiveKitErrorBoundary>
+                  {trainingMode && <LiveKitErrorBoundary><CoachingHints /></LiveKitErrorBoundary>}
+                  <LiveKitErrorBoundary><Watchdog onDisconnect={disconnect} isHolding={tacticalHold} /></LiveKitErrorBoundary>
                 </div>
-              ))}
-              <div className="col-span-3">
-                <label htmlFor="custom-motive" className="font-mono text-[9px] tracking-[0.15em] text-white/25 uppercase block mb-1">Situation / Motive</label>
-                <textarea
-                  id="custom-motive"
-                  value={customMotive}
-                  onChange={(e) => setCustomMotive(e.target.value)}
-                  maxLength={2000}
-                  className="w-full bg-white/5 border border-white/10 text-white/70 font-mono text-xs p-2 focus:outline-none focus:border-white/25 transition-colors resize-none h-16"
-                />
-              </div>
-            </div>
-          )}
 
-          {/* Connect bar */}
-          <div className="shrink-0 flex items-center gap-4 px-4 py-3 border-t border-white/8 bg-[#0a0a0a]">
-            <div className="flex-1 min-w-0">
-              <div className="font-mono text-[9px] tracking-[0.15em] text-white/20 uppercase truncate">
-                {selectedScenario?.name
-                  ? `Ready to negotiate with ${selectedScenario.name}`
-                  : "Select a subject"}
-              </div>
+                {/* ── RIGHT: transcript (dominant) + controls ── */}
+                <div className="flex-1 min-w-0 flex flex-col">
+                  <div className="flex-1 overflow-hidden">
+                    <LiveKitErrorBoundary>
+                      <LiveTranscriptFeed subjectName={currentName} />
+                    </LiveKitErrorBoundary>
+                  </div>
+                  <div className="shrink-0 border-t border-[#f4f0e6]/8">
+                    <LiveKitErrorBoundary>
+                      <SimulationUI
+                        subjectName={currentName}
+                        tacticalHold={tacticalHold}
+                        setTacticalHold={setTacticalHold}
+                        onDisconnect={disconnect}
+                      />
+                    </LiveKitErrorBoundary>
+                  </div>
+                </div>
+
+                <LiveKitErrorBoundary><RoomAudioRenderer /></LiveKitErrorBoundary>
+              </LiveKitRoom>
             </div>
-            <button
-              onClick={connect}
-              disabled={isConnecting}
-              aria-label={isConnecting ? "Connecting..." : "Begin negotiation"}
-              className={`font-mono text-[10px] font-bold tracking-[0.2em] uppercase px-6 py-3 border transition-all shrink-0 ${
-                isConnecting
-                  ? "bg-white/5 border-white/10 text-white/20 cursor-not-allowed"
-                  : "bg-[#c0392b] border-[#c0392b] text-white hover:bg-[#962d22] hover:border-[#962d22]"
-              }`}
-            >
-              {isConnecting ? "Connecting..." : "Begin Negotiation ›"}
-            </button>
           </div>
-        </div>
+        )}
       </div>
     </main>
   );

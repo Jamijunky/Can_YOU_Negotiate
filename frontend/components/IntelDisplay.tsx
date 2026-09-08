@@ -5,15 +5,15 @@ import { memo } from "react";
 const IntelDisplay = memo(function IntelDisplay({ intel }: { intel: string }) {
   return (
     <div
-      className="border-b border-white/8 p-4"
+      className="p-3 border-b border-[#f4f0e6]/8"
       role="complementary"
       aria-label="Subject intelligence briefing"
     >
-      <div className="font-mono text-[9px] tracking-[0.2em] text-[#c0392b]/50 uppercase mb-2 flex items-center gap-1.5">
-        <span className="w-1 h-1 bg-[#c0392b] shrink-0" aria-hidden="true" />
-        Situation
+      <div className="font-mono text-[9px] font-bold tracking-[0.18em] text-[#dc2626] uppercase mb-1.5 flex items-center gap-1.5">
+        <span className="w-1 h-1 bg-[#dc2626] shrink-0" aria-hidden="true" />
+        SUBJECT_INTEL
       </div>
-      <p className="font-mono text-[11px] text-white/50 leading-relaxed">{intel}</p>
+      <p className="font-serif text-[12px] text-[#f4f0e6]/65 leading-relaxed">{intel}</p>
     </div>
   );
 });

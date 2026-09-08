@@ -8,21 +8,8 @@ import {
 } from "@livekit/components-react";
 import { memo, useCallback, useState, useEffect, useRef } from "react";
 import AudioCover from "./AudioCover";
-import {
-  DISPATCH_INTERVAL_MS,
-  DISPATCH_PROGRESS_MAX,
-  DISPATCH_MESSAGES,
-} from "@/lib/constants";
+import { DISPATCH_INTERVAL_MS, DISPATCH_PROGRESS_MAX, DISPATCH_MESSAGES } from "@/lib/constants";
 import type { VoiceAssistantState } from "@/lib/types";
-
-// Maps assistant state to a terse label
-const STATE_LABELS: Record<string, string> = {
-  connecting:  "connecting",
-  listening:   "listening",
-  speaking:    "subject speaking",
-  thinking:    "processing",
-  idle:        "standby",
-};
 
 const SimulationUI = memo(function SimulationUI({
   tacticalHold,
@@ -42,9 +29,7 @@ const SimulationUI = memo(function SimulationUI({
     setTacticalHold(next);
     try {
       if (room?.localParticipant) await room.localParticipant.setMicrophoneEnabled(!next);
-    } catch (e) {
-      console.warn("Failed to toggle mic:", e);
-    }
+    } catch (e) { console.warn("Mic toggle failed:", e); }
   }, [tacticalHold, room, setTacticalHold]);
 
   const handleDisconnect = useCallback(() => {
@@ -80,162 +65,111 @@ const SimulationUI = memo(function SimulationUI({
     ? Math.min(DISPATCH_PROGRESS_MAX, ((dispatchStep + 1) / DISPATCH_MESSAGES.length) * 100)
     : 100;
 
-  return (
-    <div className="bg-[#0a0a0a]">
+  // Status label + color
+  const statusLabel = tacticalHold ? "HOLD // THINK TIME"
+    : isDispatching ? DISPATCH_MESSAGES[dispatchStep]
+    : effectiveState.toUpperCase();
 
-      {/* ── Dispatch / connecting state ── */}
-      {isDispatching && (
-        <div className="px-4 py-4 border-b border-white/8">
-          {/* Scrolling dispatch log */}
-          <div className="space-y-0.5 mb-3">
-            {DISPATCH_MESSAGES.slice(0, dispatchStep + 1).map((msg, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="font-mono text-[9px] text-white/15 shrink-0 tabular-nums">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span
-                  className={`font-mono text-[10px] tracking-wider ${
-                    i === dispatchStep ? "text-[#c8893e]" : "text-white/20"
-                  }`}
-                >
-                  {msg}
-                </span>
-                {i < dispatchStep && (
-                  <span className="font-mono text-[9px] text-[#27ae60]/60 ml-auto shrink-0">OK</span>
-                )}
-                {i === dispatchStep && (
-                  <span className="font-mono text-[9px] text-[#c8893e] ml-auto shrink-0 blink">_</span>
-                )}
-              </div>
-            ))}
-          </div>
-          {/* Progress bar */}
-          <div
-            className="w-full h-px bg-white/8"
-            role="progressbar"
-            aria-valuenow={Math.round(dispatchProgress)}
-            aria-valuemin={0}
-            aria-valuemax={100}
-          >
-            <div
-              className="h-full bg-[#c8893e] transition-all duration-700"
-              style={{ width: `${dispatchProgress}%` }}
-            />
-          </div>
+  const statusColor = tacticalHold ? "#d99a4e"
+    : effectiveState === "speaking"  ? "#d99a4e"
+    : effectiveState === "listening" ? "#d99a4e"
+    : "#f4f0e6";
+
+  return (
+    <div className="p-4 bg-[#141414]">
+
+      {/* Tactical hold banner */}
+      {tacticalHold && (
+        <div className="mb-3 px-3 py-1.5 bg-[#d99a4e] border border-[#d99a4e] flex justify-center">
+          <p className="font-mono text-[10px] font-black uppercase tracking-widest text-[#1e1e1e]">
+            TACTICAL HOLD — MIC MUTED — FORMULATE STRATEGY
+          </p>
         </div>
       )}
 
-      {/* ── Active call state ── */}
-      {!isDispatching && (
-        <div className="px-4 py-3 flex items-center gap-4 border-b border-white/8">
-          {/* State indicator */}
-          <div className="flex items-center gap-2 min-w-0">
-            <span
-              className="w-1.5 h-1.5 rounded-full shrink-0"
-              style={{
-                backgroundColor:
-                  tacticalHold ? "#c8893e"
-                  : effectiveState === "speaking" ? "#c8893e"
-                  : effectiveState === "listening" ? "#27ae60"
-                  : effectiveState === "thinking" ? "#c8893e"
-                  : "rgba(255,255,255,0.2)",
-                animation:
-                  effectiveState === "listening" && !tacticalHold
-                    ? "pulse-green 1.5s ease-in-out infinite"
-                    : effectiveState === "speaking"
-                    ? "pulse-amber 1.2s ease-in-out infinite"
-                    : "none",
-              }}
-              aria-hidden="true"
+      {/* Status label */}
+      <div className="mb-3 flex flex-col items-center gap-2">
+        <div
+          className="font-mono text-lg font-black uppercase tracking-widest text-center"
+          style={{ color: statusColor }}
+          aria-live="polite"
+        >
+          [{statusLabel}]
+        </div>
+
+        {isDispatching && (
+          <p className="font-mono text-[10px] text-[#f4f0e6]/30 tracking-widest uppercase animate-pulse text-center">
+            Connecting to subject...
+          </p>
+        )}
+
+        {/* Visualizer / progress bar */}
+        <div className="w-full max-w-xs">
+          {audioTrack && !tacticalHold && !isDispatching && (
+            <BarVisualizer
+              state={effectiveState}
+              barCount={11}
+              trackRef={audioTrack}
+              className="h-12 w-full text-[#d99a4e]"
             />
-            <span
-              className="font-mono text-[10px] tracking-[0.15em] uppercase"
-              style={{
-                color: tacticalHold ? "rgba(200,137,62,0.6)"
-                  : effectiveState === "listening" ? "rgba(39,174,96,0.8)"
-                  : effectiveState === "speaking" ? "rgba(200,137,62,0.8)"
-                  : "rgba(255,255,255,0.25)",
-              }}
-              aria-live="polite"
-            >
-              {tacticalHold ? "hold" : STATE_LABELS[effectiveState] ?? effectiveState}
-            </span>
-          </div>
-
-          {/* Tactical hold notice */}
-          {tacticalHold && (
-            <span className="font-mono text-[9px] text-[#c8893e]/40 tracking-wider uppercase">
-              mic muted — formulate strategy
-            </span>
           )}
-
-          {/* Visualizer */}
-          {audioTrack && !tacticalHold && effectiveState === "speaking" && (
-            <div className="flex-1 flex items-center justify-center h-6 max-w-[120px]">
-              <BarVisualizer
-                state={effectiveState}
-                barCount={12}
-                trackRef={audioTrack}
-                className="h-6 w-full text-[#c8893e]"
-              />
+          {isDispatching && (
+            <div className="flex flex-col items-center gap-1.5 w-full">
+              <div
+                className="w-full h-1 bg-[#f4f0e6]/8 border border-[#f4f0e6]/10"
+                role="progressbar"
+                aria-valuenow={Math.round(dispatchProgress)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <div
+                  className="h-full bg-[#d99a4e] transition-all duration-700"
+                  style={{ width: `${dispatchProgress}%`, boxShadow: "0 0 6px rgba(217,154,78,0.6)" }}
+                />
+              </div>
+              <span className="font-mono text-[9px] tracking-widest text-[#f4f0e6]/25 uppercase animate-pulse">
+                SECURING COMMS LINK
+              </span>
+            </div>
+          )}
+          {tacticalHold && (
+            <div className="h-12 flex items-center justify-center">
+              <span className="font-mono text-xs text-[#f4f0e6]/30 tracking-widest">
+                [COMMS MUTED]
+              </span>
             </div>
           )}
         </div>
-      )}
+      </div>
 
-      {/* ── Controls ── */}
-      <div className="flex items-center gap-2 px-4 py-2.5">
+      {/* Controls */}
+      <div className="flex items-center justify-center gap-3">
         <button
           onClick={toggleHold}
-          aria-label={tacticalHold ? "Resume communications" : "Tactical hold — mute mic"}
-          className={`font-mono text-[9px] tracking-[0.15em] uppercase px-4 py-2 border transition-colors ${
+          aria-label={tacticalHold ? "Resume communications" : "Tactical hold"}
+          className={`font-mono text-xs font-black px-5 py-2.5 border-2 border-[#1e1e1e] transition-all flex items-center gap-2 shadow-[3px_3px_0_0_#1e1e1e] hover:translate-x-px hover:translate-y-px hover:shadow-[2px_2px_0_0_#1e1e1e] ${
             tacticalHold
-              ? "bg-[#27ae60]/10 border-[#27ae60]/40 text-[#27ae60]/80 hover:bg-[#27ae60]/20"
-              : "bg-white/4 border-white/12 text-white/35 hover:bg-white/8 hover:text-white/55"
+              ? "bg-[#22c55e] text-[#1e1e1e] hover:bg-[#16a34a]"
+              : "bg-[#d99a4e] text-[#1e1e1e] hover:bg-[#b8803c]"
           }`}
         >
-          {tacticalHold ? "Resume" : "Hold"}
+          <span className={`w-2 h-2 rounded-full shrink-0 bg-[#1e1e1e] ${tacticalHold ? "animate-ping" : ""}`} aria-hidden="true" />
+          {tacticalHold ? "RESUME COMMS" : "TACTICAL HOLD"}
         </button>
 
         <button
           onClick={handleDisconnect}
           aria-label="End call"
-          className="font-mono text-[9px] tracking-[0.15em] uppercase px-4 py-2 border bg-[#c0392b]/10 border-[#c0392b]/40 text-[#c0392b]/70 hover:bg-[#c0392b]/20 hover:text-[#c0392b] transition-colors"
+          className="bg-[#dc2626] hover:bg-[#b91c1c] text-white font-mono text-xs font-black px-5 py-2.5 border-2 border-[#1e1e1e] shadow-[3px_3px_0_0_#1e1e1e] hover:translate-x-px hover:translate-y-px hover:shadow-[2px_2px_0_0_#1e1e1e] transition-all flex items-center gap-2"
         >
-          End Call
+          <span className="w-2 h-2 bg-white rounded-full shrink-0" aria-hidden="true" />
+          END CALL
         </button>
-
-        {/* Elapsed timer */}
-        <ElapsedTimer active={!isDispatching} />
       </div>
 
       <AudioCover isDispatching={isDispatching} isHolding={tacticalHold} />
     </div>
   );
 });
-
-// Simple elapsed time display
-function ElapsedTimer({ active }: { active: boolean }) {
-  const [seconds, setSeconds] = useState(0);
-  const ref = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (active) {
-      ref.current = setInterval(() => setSeconds((s) => s + 1), 1000);
-    }
-    return () => { if (ref.current) clearInterval(ref.current); };
-  }, [active]);
-
-  if (!active) return null;
-
-  const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
-  const ss = String(seconds % 60).padStart(2, "0");
-
-  return (
-    <span className="font-mono text-[9px] text-white/15 tabular-nums ml-auto tracking-widest">
-      {mm}:{ss}
-    </span>
-  );
-}
 
 export default SimulationUI;

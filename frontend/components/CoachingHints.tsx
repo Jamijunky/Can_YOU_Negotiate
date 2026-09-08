@@ -4,15 +4,15 @@ import { useDataChannel } from "@livekit/components-react";
 import { memo, useCallback, useState, useEffect, useRef } from "react";
 import type { CoachingHint } from "@/lib/types";
 
-const CATEGORY_COLOR: Record<CoachingHint["category"], string> = {
-  empathy:     "#27ae60",
-  patience:    "#c8893e",
-  technique:   "rgba(255,255,255,0.4)",
-  warning:     "#c0392b",
-  opportunity: "#c8893e",
+const CATEGORY_COLORS: Record<CoachingHint["category"], string> = {
+  empathy:     "#22c55e",
+  patience:    "#d99a4e",
+  technique:   "#f4f0e6",
+  warning:     "#dc2626",
+  opportunity: "#d99a4e",
 };
 
-const CATEGORY_LABEL: Record<CoachingHint["category"], string> = {
+const CATEGORY_LABELS: Record<CoachingHint["category"], string> = {
   empathy:     "EMPATHY",
   patience:    "PATIENCE",
   technique:   "TECHNIQUE",
@@ -51,31 +51,30 @@ const CoachingHints = memo(function CoachingHints() {
   if (visible.length === 0) return null;
 
   return (
-    <div className="border-b border-white/8 p-4" role="region" aria-label="Coaching hints">
-      <div className="font-mono text-[9px] tracking-[0.2em] text-white/20 uppercase mb-2">
-        Training Hints
+    <div className="p-3 border-b border-[#f4f0e6]/8" role="region" aria-label="Coaching hints">
+      <div className="font-mono text-[9px] font-bold tracking-[0.18em] text-[#d99a4e] uppercase mb-2 flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full bg-[#d99a4e] animate-pulse" aria-hidden="true" />
+        TRAINING_MODE // COACHING_HINTS
       </div>
       <div ref={scrollRef} className="space-y-1.5 max-h-28 overflow-y-auto thin-scroll">
         {visible.map((hint) => (
           <div
             key={hint.id}
-            className="flex items-start gap-2 border-l border-white/8 pl-2"
-            style={{ borderColor: `${CATEGORY_COLOR[hint.category]}40` }}
+            className="flex items-start gap-2 p-1.5 border-l-2 bg-white/4 animate-in fade-in duration-300"
+            style={{ borderColor: CATEGORY_COLORS[hint.category] }}
           >
             <span
-              className="font-mono text-[7px] font-bold shrink-0 mt-0.5 tracking-widest uppercase"
-              style={{ color: CATEGORY_COLOR[hint.category], opacity: 0.7 }}
+              className="font-mono text-[7px] font-bold shrink-0 mt-px tracking-widest uppercase"
+              style={{ color: CATEGORY_COLORS[hint.category] }}
             >
-              {CATEGORY_LABEL[hint.category]}
+              {CATEGORY_LABELS[hint.category]}
             </span>
-            <p className="font-mono text-[10px] text-white/35 leading-snug flex-1">{hint.text}</p>
+            <p className="font-serif text-[10px] text-[#f4f0e6]/60 leading-snug flex-1">{hint.text}</p>
             <button
               onClick={() => setDismissed((p) => new Set([...p, hint.id]))}
-              className="font-mono text-[10px] text-white/15 hover:text-white/40 transition-colors shrink-0"
-              aria-label="Dismiss"
-            >
-              ×
-            </button>
+              className="text-[#f4f0e6]/20 hover:text-[#f4f0e6]/50 text-xs shrink-0 transition-colors"
+              aria-label="Dismiss hint"
+            >×</button>
           </div>
         ))}
       </div>
