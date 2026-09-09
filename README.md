@@ -6,7 +6,7 @@ Pick up a live line with a cornered, panicked subject. De-escalate them using on
 
 **Live Demo**: [can-you-negotiate.vercel.app](https://can-you-negotiate.vercel.app)
 
-**Demo Video**: [YouTube (4-5 min)](https://youtu.be/VxV1gFdveb8)
+**Demo Video**: [YouTube — Can You Negotiate? (4 min demo)](https://youtu.be/VxV1gFdveb8)
 
 ---
 
